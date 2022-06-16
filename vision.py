@@ -1,13 +1,16 @@
-import cv2
 import cv2 as cv
 import numpy as np
+
+import gui
+# If cv2.imshow is not used, should use opencv-python-headless
+
+GREEN = (0, 255, 0)
 
 
 def crop_image(img):
     apriltags = cv.aruco.DICT_APRILTAG_36h11
 
     height, width = img.shape[:2]
-    green = (0, 255, 0)
 
     region_top = 0
     region_left = width
@@ -41,13 +44,39 @@ def crop_image(img):
     return img[region_top:region_bottom, region_left:region_right]
 
 
-# If cv2.imshow is not used, should use opencv-python-headless
+def fill_holes(img, thresh_param=127):
+    _, im_th = cv.threshold(img, thresh_param, 255, cv.THRESH_BINARY_INV)
+    im_floodfill = im_th.copy()
+    h, w = im_th.shape[:2]
+    mask = np.zeros((h+2, w+2), np.uint8)
+    cv.floodFill(im_floodfill, mask, (0, 0), 255)
+    im_floodfill_inv = cv.bitwise_not(im_floodfill)
+    return im_th | im_floodfill_inv
+
+
 img = cv.imread('IMG_1010.jpg')  # cv.IMREAD_GRAYSCALE
 
-img = crop_image(img)
+img_cropped = crop_image(img)
 
-kernel = cv.getStructuringElement(cv2.MORPH_ELLIPSE, (100, 100))
+img_grey = cv.cvtColor(img_cropped, cv.COLOR_BGR2GRAY)
+# ret, thresh = cv.threshold(img_grey, THRESH_PARAM, 255, cv.THRESH_BINARY)
+# contours, hierarchy = cv.findContours(thresh, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
 
-cv.imshow('Lines', img)
-cv.waitKey(0)
-cv.destroyAllWindows()
+# cnt = contours[0]
+# cv.drawContours(img_cropped, contours, -1, GREEN, 3)
+# ellipse = cv.fitEllipse(cnt)
+# cv.ellipse(img_cropped, ellipse, GREEN, 2)
+
+filled = fill_holes(img_grey, 120)
+
+kernel = cv.getStructuringElement(cv.MORPH_ELLIPSE, (7, 7))
+thresh = cv.morphologyEx(filled, cv.MORPH_OPEN, kernel)
+thresh = cv.morphologyEx(thresh, cv.MORPH_CLOSE, kernel)
+
+
+gui.showImage(img)
+gui.showImage(img_cropped)
+gui.showImage(thresh)
+#
+# kernel = cv.getStructuringElement(cv2.MORPH_ELLIPSE, (100, 100))
+#
