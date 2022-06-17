@@ -1,6 +1,7 @@
 import cv2
 import cv2 as cv
 import numpy as np
+import math
 
 import gui
 # If cv2.imshow is not used, should use opencv-python-headless
@@ -41,21 +42,22 @@ def crop_image(img):
     return img[region_top:region_bottom, region_left:region_right]
 
 
-def fill_holes(img, thresh_param=127):
-    """Returns a threshold image of the board"""
-    _, img_th = cv.threshold(img, thresh_param, 255, cv.THRESH_BINARY_INV)
-    img_floodfill = img_th.copy()
-    h, w = img_th.shape[:2]
-    mask = np.zeros((h+2, w+2), np.uint8)
-    cv.floodFill(img_floodfill, mask, (0, 0), 255)
-    img_floodfill_inv = cv.bitwise_not(img_floodfill)
-    return img_th | img_floodfill_inv
+# def fill_holes(img, thresh_param=127):
+#     """Returns a threshold image of the board"""
+#     _, img_th = cv.threshold(img, thresh_param, 255, cv.THRESH_BINARY_INV)
+#     img_floodfill = img_th.copy()
+#     h, w = img_th.shape[:2]
+#     mask = np.zeros((h+2, w+2), np.uint8)
+#     cv.floodFill(img_floodfill, mask, (0, 0), 255)
+#     img_floodfill_inv = cv.bitwise_not(img_floodfill)
+#     return img_th | img_floodfill_inv
 
 
 def get_face(img):
     """Returns the play face of the dartboard"""
     img_hsv = cv.cvtColor(img, cv.COLOR_BGR2HSV)
 
+    # Find a threshold of only green and red shapes
     lower_red_hue_rng = cv.inRange(img_hsv, (0, 100, 100), (10, 255, 255))
     upper_red_hug_rng = cv.inRange(img_hsv, (160, 100, 100), (179, 255, 255))
     img_red_hue = cv.addWeighted(lower_red_hue_rng, 1, upper_red_hug_rng, 1, 0)
@@ -63,8 +65,37 @@ def get_face(img):
 
     img_comb_hue = cv.addWeighted(img_green_hue, 1, img_red_hue, 1, 0)
 
+    # Postprocessing: blur the output so that the silver lines are ignored
+    img_comb_hue = cv.GaussianBlur(img_comb_hue, (5, 5), cv.BORDER_DEFAULT)
+
     return img_comb_hue
 
+
+def get_perspective_mat(thresh):
+    """Gets the"""
+    contours, hierarchy = cv.findContours(thresh, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
+    largest_contour = []
+    max_area = 0
+    for cnt in contours:
+        area = cv.contourArea(cnt)
+        if area > max_area:
+            max_area = area
+            largest_contour = cnt
+
+    ellipse = cv.fitEllipse(largest_contour)
+
+    e_center = ellipse[0]
+    e_size = ellipse[1]
+
+    top, right, bottom, left = ([e_center[0], e_center[1] - e_size[1] / 2], [e_center[0] + e_size[0] / 2, e_center[1]],
+                                [e_center[0], e_center[1] + e_size[1] / 2], [e_center[0] - e_size[0] / 2, e_center[1]])
+
+    source_pts = np.float32([top, right,
+                             bottom, left])
+    dest_pts = np.float32([[540, 0], [1080, 540],
+                           [540, 1080], [0, 540]])
+
+    return cv.getPerspectiveTransform(source_pts, dest_pts)
 
 
 def perspective_correction(img_cropped, thresh):
@@ -92,14 +123,14 @@ def perspective_correction(img_cropped, thresh):
 
     source_pts = np.float32([top, right,
                              bottom, left])
-    dest_pts = np.float32([[w / 2, 0], [w, h / 2],
-                           [w / 2, h], [0, h / 2]])
+    dest_pts = np.float32([[540, 0], [1080, 540],
+                           [540, 1080], [0, 540]])
 
     perspective_mat = cv.getPerspectiveTransform(source_pts, dest_pts)
-    return cv.warpPerspective(img_cropped, perspective_mat, (w, h))
+    return cv.warpPerspective(img_cropped, perspective_mat, (1080, 1080))
 
 
-def center_bull(img, p1=50, p2=20):
+def center_bull(img):
     """Returns img with the center of the bullseye at the center of the image"""
     # Select only the center of the image, zoom by factor of 4
     h, w = img.shape[:2]
@@ -111,14 +142,17 @@ def center_bull(img, p1=50, p2=20):
     # Get a mask of only 'red' pixels
     img_mid_hsv = cv.cvtColor(img_mid, cv.COLOR_BGR2HSV)
 
-    lower_red_hue_rng = cv.inRange(img_mid_hsv, (0, 100, 100), (10, 255, 255))
-    upper_red_hug_rng = cv.inRange(img_mid_hsv, (160, 100, 100), (179, 255, 255))
+    # lower_red_hue_rng = cv.inRange(img_mid_hsv, (0, 100, 100), (10, 255, 255))
+    # upper_red_hug_rng = cv.inRange(img_mid_hsv, (160, 100, 100), (179, 255, 255))
+    #
+    # img_red_hue = cv.addWeighted(lower_red_hue_rng, 1, upper_red_hug_rng, 1, 0)
+    # img_red_hue = cv.GaussianBlur(img_red_hue, (5, 5), cv.BORDER_DEFAULT)
 
-    img_red_hue = cv.addWeighted(lower_red_hue_rng, 1, upper_red_hug_rng, 1, 0)
-    img_red_hue = cv.GaussianBlur(img_red_hue, (5, 5), cv.BORDER_DEFAULT)
+    img_green_hue = cv.inRange(img_mid_hsv, (32, 38, 70), (85, 255, 200))
+    img_green_hue = cv.GaussianBlur(img_green_hue, (5, 5), cv.BORDER_DEFAULT)
 
     # Detect the circles in this mask
-    circles = cv.HoughCircles(img_red_hue, cv.HOUGH_GRADIENT, 1, w // 4, param1=50, param2=20)
+    circles = cv.HoughCircles(img_green_hue, cv.HOUGH_GRADIENT, 1, w // 4, param1=50, param2=20)
     if circles is not None:
         circles = np.uint16(np.around(circles))
 
@@ -132,33 +166,53 @@ def center_bull(img, p1=50, p2=20):
             # img_mid = cv.circle(img_mid, (c[0], c[1]), c[2], GREEN, 3)
 
         true_center = (mid_x-offset_x+bull_center[0], mid_y-offset_y+bull_center[1])
-        img = cv.circle(img, true_center, max_radius, GREEN, 2)
-    else:
-        # Need to handle no bull detected
-        pass
+        return true_center
+    #     img = cv.circle(img, true_center, max_radius, GREEN, 2)
+    # else:
+    #     # Need to handle no bull detected
+    #     pass
+    #
+    # return img
 
-    return img
+
+def draw_polar_line(img, src, theta):
+    r = img.shape[0] // 2
+
+    dst = (int(r * 1/math.cos(theta)) + src[0], int(r * 1/math.sin(theta)) + src[1])
+
+    return cv.line(img, src, dst, GREEN, 2)
 
 
 img = cv.imread('IMG_1010.jpg')  # cv.IMREAD_GRAYSCALE
 
 # If source image is very noisy, use cv.medianBlur()
 
-img_cropped = crop_image(img)
+# img_cropped = crop_image(img)
 
-img_grey = cv.cvtColor(img_cropped, cv.COLOR_BGR2GRAY)
 # When adjusting thresh_param, need to retry until the bounding box of the fitted ellipse fits within (0, 0), (w, h)
-thresh = fill_holes(img_grey, 100)
+# thresh = fill_holes(img_grey, 100)
 
-img_face = get_face(img_cropped)
+# Calculate the threshold of the dart face
+# img_face = get_face(img_cropped)
 
-img_warped = perspective_correction(img_cropped, thresh)
+img_face = get_face(img)
 
+# Correct the perspective so that the face is square on
+# img_warped = perspective_correction(img_cropped, img_face)
+img_warped = perspective_correction(img, img_face)
+height, width = img_warped.shape[:2]
 # Next function: detect bull/semibull
-img_bull = center_bull(img_warped)
+bull = center_bull(img_warped)
 
-# gui.showImage(img)
-# gui.showImage(img_cropped)
-# gui.showImage(img_warped)
-# gui.showImage(img_bull)
+# TODO: fix rotation
+for i in range(20):
+    theta = (i + 0.5) * (math.pi / 10)
+    # (width // 2, height // 2)
+    img_warped = draw_polar_line(img_warped, bull, theta)
+
+
+gui.showImage(img)
 gui.showImage(img_face)
+# gui.showImage(img_cropped)
+gui.showImage(img_warped)
+# gui.showImage(img_bull)
