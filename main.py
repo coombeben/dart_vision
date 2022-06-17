@@ -1,91 +1,23 @@
-def parse_score(score: str) -> (int, bool):
-    if score[0] == 'T':
-        return 3 * int(score[1:]), False
-    elif score[0] == 'D':
-        return 2 * int(score[1:]), True
-    elif score == 'Bull':
-        return 50, True
-    elif score == 'Semibull':
-        return 25, False
-    return int(score), False
+from time import sleep
+from picamera import PiCamera
+from picamera.array import PiRGBArray
+import cv2 as cv
 
+from dartboard import Dartboard
 
-class Game:
-    def __init__(self, players, mode='501'):
-        if len(players) == 0:
-            raise ValueError('Must have at least one player')
+dartboard = Dartboard()
 
-        self.mode = mode
-        self.playing = len(players)
-        self.players = []
-        self.game_over = False
+camera = PiCamera()
+camera.resolution = (1920, 1080)
+camera.framerate = 15
+raw_capture = PiRGBArray(camera, size=(1980, 1080))
 
-        if mode == '501':
-            target = 501
-        elif mode == '301':
-            target = 301
-        else:
-            raise ValueError(f'mode {mode} is not a valid mode')
+sleep(1)
 
-        for player_name in players:
-            self.players.append(Player(player_name, target))
+for frame in camera.capture_continuous(raw_capture, format='bgr', use_video_port=True):
+    img = frame.array
 
-        print(self)
+    if not dartboard.calibrated:
+        dartboard.update_perspective_mat(img)
 
-    def __str__(self):
-        return '\n'.join([f'Player: {player.name}\tTarget: {player.target}' for player in self.players])
-
-    def play_round(self):
-        for player in self.players:
-            player.darts_remaining = 3
-            while player.darts_remaining > 0:
-                pts = input(f"Enter {player.name}'s score: ")
-                player.score(pts)
-                if player.target == 0:
-                    print(player.name + ' has won!')
-                    self.game_over = True
-                    return
-        print(self)
-
-
-class Player:
-    def __init__(self, name: str, target: int):
-        self.name = name
-        self.target = target
-        self.darts_remaining = 3
-
-    def __str__(self):
-        print(f'Player: {self.name}\tTarget: {self.target}')
-
-    def score(self, points: str):
-        pts, can_finish = parse_score(points)
-        if pts < self.target:
-            if self.target - pts == 1:
-                self._bust('Cannot have 1 remaining!')
-            else:
-                self._adjust_target(pts)
-        elif pts == self.target:
-            if can_finish:
-                self._adjust_target(pts)
-            else:
-                self._bust('Need to finish on a double!')
-        else:
-            self._bust('Cannot exceed target!')
-
-    def _adjust_target(self, pts: int):
-        self.target -= pts
-        self.darts_remaining -= 1
-
-    def _bust(self, reason: str):
-        print('Bust: ' + reason)
-        self.darts_remaining = 0
-
-
-def main():
-    game = Game(['Alice', 'Bob'])
-    while not game.game_over:
-        game.play_round()
-
-
-if __name__ == '__main__':
-    main()
+    raw_capture.truncate(0)
