@@ -7,6 +7,7 @@ class Dartboard:
         self.calibrated = False
         self.last_calibrated = None
         self.perspective_matrix = None
+        self.expected_action = 'Dart'
 
     def update_perspective_mat(self, img):
         # Optional: use vision.crop_image() to limit search area first
