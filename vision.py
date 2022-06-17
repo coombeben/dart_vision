@@ -1,3 +1,4 @@
+import cv2
 import cv2 as cv
 import numpy as np
 
@@ -8,6 +9,7 @@ GREEN = (0, 255, 0)
 
 
 def crop_image(img):
+    """Finds a reasonable region to start work from using the position of the 4 apriltags"""
     apriltags = cv.aruco.DICT_APRILTAG_36h11
 
     height, width = img.shape[:2]
@@ -40,6 +42,7 @@ def crop_image(img):
 
 
 def fill_holes(img, thresh_param=127):
+    """Returns a threshold image of the board"""
     _, img_th = cv.threshold(img, thresh_param, 255, cv.THRESH_BINARY_INV)
     img_floodfill = img_th.copy()
     h, w = img_th.shape[:2]
@@ -49,7 +52,23 @@ def fill_holes(img, thresh_param=127):
     return img_th | img_floodfill_inv
 
 
+def get_face(img):
+    """Returns the play face of the dartboard"""
+    img_hsv = cv.cvtColor(img, cv.COLOR_BGR2HSV)
+
+    lower_red_hue_rng = cv.inRange(img_hsv, (0, 100, 100), (10, 255, 255))
+    upper_red_hug_rng = cv.inRange(img_hsv, (160, 100, 100), (179, 255, 255))
+    img_red_hue = cv.addWeighted(lower_red_hue_rng, 1, upper_red_hug_rng, 1, 0)
+    img_green_hue = cv.inRange(img_hsv, (32, 38, 70), (85, 255, 200))
+
+    img_comb_hue = cv.addWeighted(img_green_hue, 1, img_red_hue, 1, 0)
+
+    return img_comb_hue
+
+
+
 def perspective_correction(img_cropped, thresh):
+    """Adjusts the perspective of img_cropped so that it is square on"""
     h, w = thresh.shape[:2]
 
     contours, hierarchy = cv.findContours(thresh, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
@@ -80,25 +99,66 @@ def perspective_correction(img_cropped, thresh):
     return cv.warpPerspective(img_cropped, perspective_mat, (w, h))
 
 
-def main():
-    img = cv.imread('IMG_1010.jpg')  # cv.IMREAD_GRAYSCALE
+def center_bull(img, p1=50, p2=20):
+    """Returns img with the center of the bullseye at the center of the image"""
+    # Select only the center of the image, zoom by factor of 4
+    h, w = img.shape[:2]
+    mid_y, mid_x = (h//2, w//2)
+    offset_y, offset_x = (mid_y // 4, mid_x // 4)
 
-    img_cropped = crop_image(img)
+    img_mid = img[mid_y-offset_y:mid_y+offset_y, mid_x-offset_x:mid_x+offset_x].copy()
 
-    img_grey = cv.cvtColor(img_cropped, cv.COLOR_BGR2GRAY)
-    thresh = fill_holes(img_grey, 100)
+    # Get a mask of only 'red' pixels
+    img_mid_hsv = cv.cvtColor(img_mid, cv.COLOR_BGR2HSV)
 
-    # kernel = cv.getStructuringElement(cv.MORPH_ELLIPSE, (7, 7))
-    # thresh = cv.morphologyEx(thresh, cv.MORPH_CLOSE, kernel)
+    lower_red_hue_rng = cv.inRange(img_mid_hsv, (0, 100, 100), (10, 255, 255))
+    upper_red_hug_rng = cv.inRange(img_mid_hsv, (160, 100, 100), (179, 255, 255))
 
-    img_warped = perspective_correction(img_cropped, thresh)
+    img_red_hue = cv.addWeighted(lower_red_hue_rng, 1, upper_red_hug_rng, 1, 0)
+    img_red_hue = cv.GaussianBlur(img_red_hue, (5, 5), cv.BORDER_DEFAULT)
 
-    # When adjusting thresh_param, need to retry until the bounding box of the fitted ellipse fits within (0, 0), (w, h)
+    # Detect the circles in this mask
+    circles = cv.HoughCircles(img_red_hue, cv.HOUGH_GRADIENT, 1, w // 4, param1=50, param2=20)
+    if circles is not None:
+        circles = np.uint16(np.around(circles))
 
-    gui.showImage(img)
-    gui.showImage(img_cropped)
-    gui.showImage(img_warped)
+        # Select the largest circle as the bull
+        max_radius = 0
+        bull_center = (0, 0)
+        for c in circles[0, :]:
+            if c[2] > max_radius:
+                max_radius = c[2]
+                bull_center = (c[0], c[1])
+            # img_mid = cv.circle(img_mid, (c[0], c[1]), c[2], GREEN, 3)
+
+        true_center = (mid_x-offset_x+bull_center[0], mid_y-offset_y+bull_center[1])
+        img = cv.circle(img, true_center, max_radius, GREEN, 2)
+    else:
+        # Need to handle no bull detected
+        pass
+
+    return img
 
 
-if __name__ == '__main__':
-    main()
+img = cv.imread('IMG_1010.jpg')  # cv.IMREAD_GRAYSCALE
+
+# If source image is very noisy, use cv.medianBlur()
+
+img_cropped = crop_image(img)
+
+img_grey = cv.cvtColor(img_cropped, cv.COLOR_BGR2GRAY)
+# When adjusting thresh_param, need to retry until the bounding box of the fitted ellipse fits within (0, 0), (w, h)
+thresh = fill_holes(img_grey, 100)
+
+img_face = get_face(img_cropped)
+
+img_warped = perspective_correction(img_cropped, thresh)
+
+# Next function: detect bull/semibull
+img_bull = center_bull(img_warped)
+
+# gui.showImage(img)
+# gui.showImage(img_cropped)
+# gui.showImage(img_warped)
+# gui.showImage(img_bull)
+gui.showImage(img_face)
