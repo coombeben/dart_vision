@@ -29,8 +29,8 @@ def main_loop():
     # time.sleep(1)
     prev_frame = np.zeros((consts.TRANSFORM_X, consts.TRANSFORM_Y, 3), np.uint8)
     frame_number = 1
-    # back_sub = cv.createBackgroundSubtractorMOG2(history=30, detectShadows=True)
-    back_sub = cv.bgsegm.createBackgroundSubtractorCNT()
+    back_sub = cv.createBackgroundSubtractorMOG2(history=30, detectShadows=True)
+    # back_sub = cv.bgsegm.createBackgroundSubtractorCNT()
 
     # for frame in camera.capture_continuous(raw_capture, format='bgr', use_video_port=True):
     while camera.isOpened():  # cv specific
@@ -43,38 +43,38 @@ def main_loop():
             dartboard.update_perspective_mat(frame)
 
             if dartboard.perspective_matrix is not None:
-                frame = cv.warpPerspective(frame, dartboard.perspective_matrix,
+                frame_adj = cv.warpPerspective(frame, dartboard.perspective_matrix,
                                            (consts.TRANSFORM_X, consts.TRANSFORM_Y))
-                foregound_mask = back_sub.apply(frame)
+                foregound_mask = back_sub.apply(frame_adj)
 
                 # Calculate difference between frames
-                similarity = get_similarity(prev_frame, frame)
+                similarity = get_similarity(prev_frame, frame_adj)
 
                 # If difference is too great, recalculate perspective matrix
                 if similarity < consts.RECALIBRATE_THRESH:
                     dartboard.update_perspective_mat(frame)
-                    frame = cv.warpPerspective(frame, dartboard.perspective_matrix,
+                    frame_adj = cv.warpPerspective(frame, dartboard.perspective_matrix,
                                                (consts.TRANSFORM_X, consts.TRANSFORM_Y))
 
                 elif similarity < consts.DART_THRESH and frame_number > 1:
 
-                    # dartboard.get_points(img_face)
                     # print(frame_number, similarity)
                     # gui.showImage(prev_frame)
-                    # gui.showImage(img_face)
-                    gui.showImage(foregound_mask)
+                    # gui.showImage(foregound_mask)
+                    gui.showImage(frame)
+                    gui.showImage(frame_adj)
 
                     thresh = vision.clean_diff(foregound_mask)
                     conts, _ = cv.findContours(thresh, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
                     largest_cont, _ = vision.get_largest_contor(conts)
-                    frame_conts = cv.drawContours(frame, [largest_cont], 0, consts.GREEN, 3)
+                    frame_conts = cv.drawContours(frame_adj, [largest_cont], 0, consts.GREEN, 3)
 
                     gui.showImage(frame_conts)
                     exec_time = time.time() - start_time
                     print(f'Exection time: {np.round(exec_time, 2)}, fps: {np.round(frame_number / exec_time, 2)}')
                     break
 
-                prev_frame = frame
+                prev_frame = frame_adj
 
             # Clear steam in preparation for next frame
             frame_number += 1
