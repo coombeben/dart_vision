@@ -212,3 +212,23 @@ def clean_diff(thresh):
 
     return thresh
 
+
+def get_arrow_point(img, cont):
+    rect_center, rect_size, rect_angle = cv.minAreaRect(cont)
+    rect_angle_rads = rect_angle * 180 / np.pi
+    center_adj = ()
+
+    rect_a = ((), (rect_size[0] // 2, rect_size[1]), rect_angle)
+    rect_b = ((), (rect_size[0] // 2, rect_size[1]), rect_angle)
+
+    # search_zone_a = np.array([pt_a, pt_b, pt_c, pt_f], np.uint8)
+    # search_zone_b = np.array([pt_c, pt_d, pt_e, pt_f], np.uint8)
+    #
+    # mask_a = np.zeros((consts.TRANSFORM_X, consts.TRANSFORM_Y), np.uint8)
+    # mask_b = np.zeros((consts.TRANSFORM_X, consts.TRANSFORM_Y), np.uint8)
+    #
+    # mask_a = cv.fillConvexPoly(mask_a, search_zone_a, 4, 1)
+
+    # point_a =
+
+    return
