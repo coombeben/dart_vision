@@ -1,5 +1,6 @@
-from vision import get_face, get_perspective_mat
 from datetime import datetime
+
+from .vision import get_face, get_perspective_mat
 
 
 class Dartboard:

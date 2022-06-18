@@ -1,9 +1,19 @@
 import cv2 as cv
 import numpy as np
 
-import gui
 import consts
 # If cv2.imshow is not used, should use opencv-python-headless
+
+
+def get_largest_contor(cnts):
+    largest_contour = []
+    max_area = 0
+    for cnt in cnts:
+        area = cv.contourArea(cnt)
+        if area > max_area:
+            max_area = area
+            largest_contour = cnt
+    return largest_contour, max_area
 
 
 def crop_image(img):
@@ -71,22 +81,16 @@ def get_face(img):
 def get_perspective_mat(thresh):
     """Gets the"""
     contours, hierarchy = cv.findContours(thresh, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
-    largest_contour = []
-    max_area = 0
-    for cnt in contours:
-        area = cv.contourArea(cnt)
-        if area > max_area:
-            max_area = area
-            largest_contour = cnt
+    largest_contour, max_area = get_largest_contor(contours)
 
     ellipse = cv.fitEllipse(largest_contour)
     e_center, e_size = (ellipse[0], ellipse[1])
 
     # Validate the found ellipse. If the ellipse is too eccentric, reject the found ellipse
     e_eccentricity = np.sqrt(1 - e_size[0] ** 2 / e_size[0] ** 2)
-    print(f'Area: {max_area}, Eccentricity: {e_eccentricity}')
+    # print(f'Area: {max_area}, Eccentricity: {e_eccentricity}')
 
-    if consts.MIN_ECCENTRICITY < e_eccentricity < 1 / consts.MIN_ECCENTRICITY:
+    if e_eccentricity < consts.MAX_ECCENTRICITY and max_area > consts.MIN_AREA:
         top, right, bottom, left = ([e_center[0], e_center[1] - e_size[1] / 2], [e_center[0] + e_size[0] / 2, e_center[1]],
                                     [e_center[0], e_center[1] + e_size[1] / 2], [e_center[0] - e_size[0] / 2, e_center[1]])
 
@@ -104,13 +108,8 @@ def perspective_correction(img_cropped, thresh):
     h, w = thresh.shape[:2]
 
     contours, hierarchy = cv.findContours(thresh, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
-    largest_contour = []
-    max_area = 0
-    for cnt in contours:
-        area = cv.contourArea(cnt)
-        if area > max_area:
-            max_area = area
-            largest_contour = cnt
+
+    largest_contour, max_area = get_largest_contor(contours)
 
     ellipse = cv.fitEllipse(largest_contour)
     # img_cropped = cv.drawContours(img_cropped, largest_contour, -1, consts.GREEN, 3)
@@ -176,19 +175,40 @@ def center_bull(img):
     # return img
 
 
-def compute_diff(img_a, img_b):
-    # img_a_hsv = cv.cvtColor(img_a, cv.COLOR_BGR2HSV)
-    # img_b_hsv = cv.cvtColor(img_b, cv.COLOR_BGR2HSV)
-    #
-    # img_a_v = img_a_hsv[:, :, 2]
-    # img_b_v = img_b_hsv[:, :, 2]
+def frame_diff(img_a, img_b):
+    img_a_grey = cv.cvtColor(img_a, cv.COLOR_BGR2GRAY)
+    img_b_grey = cv.cvtColor(img_b, cv.COLOR_BGR2GRAY)
 
-    diff = cv.absdiff(img_a, img_b)
-    diff = cv.cvtColor(diff, cv.COLOR_BGR2GRAY)
+    # img_a_grey = cv.blur(img_a_grey, (5, 5))
+    # img_b_grey = cv.blur(img_b_grey, (5, 5))
 
-    diff = cv.GaussianBlur(diff, (5, 5), cv.BORDER_DEFAULT)
+    img_a_grey = cv.GaussianBlur(img_a_grey, (5, 5), cv.BORDER_DEFAULT)
+    img_b_grey = cv.GaussianBlur(img_b_grey, (5, 5), cv.BORDER_DEFAULT)
 
-    # diff = cv.addWeighted(diff, 1, morph, 1, 0)
+    img_a_grey = cv.equalizeHist(img_a_grey)
+    img_b_grey = cv.equalizeHist(img_b_grey)
 
-    _, thresh = cv.threshold(diff, 50, 255, cv.THRESH_BINARY)
+    diff = cv.absdiff(img_a_grey, img_b_grey)
+
+    diff = cv.GaussianBlur(diff, (consts.BLUR_KSIZE, consts.BLUR_KSIZE), cv.BORDER_DEFAULT)
+
+    _, thresh = cv.threshold(diff, 70, 255, cv.THRESH_BINARY)
+
+    kernel = cv.getStructuringElement(cv.MORPH_ELLIPSE, (consts.KERNEL_SIZE, consts.KERNEL_SIZE))
+    thresh = cv.morphologyEx(thresh, cv.MORPH_CLOSE, kernel)
+
     return thresh
+
+
+def clean_diff(thresh):
+    # Remove shadows
+    _, thresh = cv.threshold(thresh, 200, 255, cv.THRESH_BINARY)
+
+    # Remove noise
+    thresh = cv.GaussianBlur(thresh, (7, 7), cv.BORDER_DEFAULT)
+
+    kernel = np.ones((7, 7), np.uint8)
+    thresh = cv.morphologyEx(thresh, cv.MORPH_CLOSE, kernel)
+
+    return thresh
+
