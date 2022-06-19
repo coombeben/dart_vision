@@ -210,21 +210,43 @@ def clean_diff(thresh):
 
 
 def get_arrow_point(img, cont):
+    """Returns the coordinates of the intersection of the dart and the board"""
+    # Basic logic:
+    # 1) fit a rectangle and line through the dart contour.
+    # 2) for each side of the rectangle, check that it is somewhat perpendicular to the line
+    # 3) if it is perpendicular, calculate the point at which the fitted line meets the rectangle edge
+    # 4) for all intersection points calculated, select the one furthest from the center of mass of the contour
+
     center_of_mass = cont.mean(axis=0)[0]
 
     rect_center, rect_size, rect_angle = cv.minAreaRect(cont)
 
     box = cv.boxPoints((rect_center, rect_size, rect_angle))
-    # CV returns line as an array of [pt_x, pt_y, m_x, m_y] so we convert the box points into a similar form to solve
-    box_line = np.array([box[2][0] - box[3][0], box[2][1] - box[3][1], box[2][0], box[2][1]], np.float32)
 
     line = cv.fitLine(cont, cv.DIST_L2, 0, 0.01, 0.01)
     line = line.flatten()
 
-    a = np.array([[line[0], -box_line[0]], [line[1], -box_line[1]]], np.float32)
-    b = np.array([line[2] - box_line[2], line[3] - box_line[3]], np.float32)
-    r = np.linalg.solve(a, b)
+    possible_intersect_points = []
+    for i in range(4):
+        # CV returns line as an array of [m_x, m_y, pt_x, pt_y] so we convert the box points into a similar form to solve
+        box_line = np.array([box[i % 4][0] - box[(i + 1) % 4][0], box[i % 4][1] - box[(i + 1) % 4][1],
+                             box[i % 4][0], box[i % 4][1]], np.float32)
 
-    intersect_point = (line[2] - r[0] * line[0], line[3] - r[0] * line[1])
+        # Check that the gradients are somewhat tangential
+        relative_angle = np.arccos(np.dot(line[0:2], box_line[0:2]) / (norm(line[0:2]) * norm(box_line[0:2])))
+        if (np.pi/4 <= relative_angle <= 3*np.pi/4) or (5*np.pi/4 <= relative_angle <= 7*np.pi/4):
+            a = np.array([[line[0], -box_line[0]], [line[1], -box_line[1]]], np.float32)
+            b = np.array([box_line[2] - line[2], box_line[3] - line[3]], np.float32)
+            r = np.linalg.solve(a, b)
+
+            intersect_point = np.array((line[2] + r[0] * line[0], line[3] + r[0] * line[1]), np.float32)
+
+            possible_intersect_points.append(intersect_point)
+
+    max_dist = 0
+    intersect_point = None
+    for ip in possible_intersect_points:
+        if norm(ip - center_of_mass) > max_dist:
+            intersect_point = ip
 
     return intersect_point
