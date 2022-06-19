@@ -18,6 +18,33 @@ def get_largest_contour(cnts):
     return largest_contour, max_area
 
 
+def get_smallest_contour(cnts):
+    smallest_contour = []
+    min_area = consts.RESOLUTION_X * consts.RESOLUTION_Y
+    for cnt in cnts:
+        area = cv.contourArea(cnt)
+        if area < min_area:
+            min_area = area
+            smallest_contour = cnt
+    return smallest_contour, min_area
+
+
+def get_min_max_contours(cnts):
+    largest_contour = []
+    smallest_contour = []
+    max_area = 0
+    min_area = consts.RESOLUTION_X * consts.RESOLUTION_Y
+    for cnt in cnts:
+        area = cv.contourArea(cnt)
+        if area > max_area:
+            max_area = area
+            largest_contour = cnt
+        if area < min_area:
+            min_area = area
+            smallest_contour = cnt
+    return largest_contour, max_area, smallest_contour, min_area
+
+
 # def get_angle(pt_a, pt_b):
 #     return np.arccos(np.dot(pt_a, pt_b) / (norm(pt_a) * norm(pt_a)))
 
@@ -55,7 +82,7 @@ def get_largest_contour(cnts):
 #     return img[region_top:region_bottom, region_left:region_right]
 
 
-def fill_holes(thresh, thresh_param=127):
+def fill_holes(thresh):
     """Returns a threshold image of the board"""
     # _, img_th = cv.threshold(img, thresh_param, 255, cv.THRESH_BINARY_INV)
     img_floodfill = thresh.copy()
@@ -84,7 +111,7 @@ def get_face(img):
     return img_comb_hue
 
 
-def get_perspective_mat(thresh):
+def get_perspective_mat(thresh, debug=False):
     """Gets the"""
     contours, _ = cv.findContours(thresh, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
     largest_contour, max_area = get_largest_contour(contours)
@@ -93,7 +120,8 @@ def get_perspective_mat(thresh):
 
     # Validate the found ellipse. If the ellipse is too eccentric, reject the found ellipse
     e_eccentricity = np.sqrt(1 - e_size[0] ** 2 / e_size[1] ** 2)
-    # print(f'Area: {max_area}, Eccentricity: {e_eccentricity}')
+    if debug:
+        print(f'Area: {max_area}, Eccentricity: {e_eccentricity}')
 
     perspective_mat = None
     if e_eccentricity < consts.MAX_ECCENTRICITY and max_area > consts.MIN_DARTBOARD_AREA:
@@ -114,29 +142,60 @@ def get_perspective_mat(thresh):
 
 
 # noinspection DuplicatedCode
-def get_homography_mat(thresh):
-    """Gets the homography matrix to adjust the perspetive"""
-    filled_face = fill_holes(thresh)
-    contours, _ = cv.findContours(filled_face, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
+def get_homography_mat(img, debug=False):
+    """Gets the homography matrix to adjust the perspective"""
+    img_hsv = cv.cvtColor(img, cv.COLOR_BGR2HSV)
+
+    # Find a threshold of only consts.GREEN and red shapes
+    lower_red_hue_rng = cv.inRange(img_hsv, (0, 100, 100), (10, 255, 255))
+    upper_red_hug_rng = cv.inRange(img_hsv, (160, 100, 100), (179, 255, 255))
+    img_red_hue = cv.addWeighted(lower_red_hue_rng, 1, upper_red_hug_rng, 1, 0)
+    img_green_hue = cv.inRange(img_hsv, (32, 38, 70), (85, 255, 200))
+
+    img_comb_hue = cv.addWeighted(img_green_hue, 1, img_red_hue, 1, 0)
+    # Postprocessing: blur the output so that the silver lines are ignored
+    img_comb_hue = cv.GaussianBlur(img_comb_hue, (7, 7), cv.BORDER_DEFAULT)
+
+    _, red_green_thresh = cv.threshold(img_comb_hue, 127, 255, cv.THRESH_BINARY)
+
+    contours, _ = cv.findContours(red_green_thresh, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
     largest_contour, max_area = get_largest_contour(contours)
 
-    ellipse = cv.fitEllipse(largest_contour)
-    e_center, e_size, e_angle = ellipse
+    max_ellipse = cv.fitEllipse(largest_contour)
+    e_center, e_size, e_angle = max_ellipse
 
-    mask = np.zeros_like(thresh, np.uint8)
-    mask = cv.ellipse(mask, ellipse, (255, 255, 255), -1)
+    mask = np.zeros(img.shape[:2], np.uint8)
+    mask = cv.ellipse(mask, max_ellipse, (255, 255, 255), -1)
 
-    masked_thresh = cv.bitwise_and(thresh, thresh, mask=mask)
+    masked_thresh = cv.bitwise_and(red_green_thresh, red_green_thresh, mask=mask)
+
+    if debug:
+        gui.showImage(masked_thresh)
+
+    # Maybe don't need to recalculate conts, can just filter existing based on proximity to e_center
+    interior_contours, _ = cv.findContours(masked_thresh, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
+    smallest_contour, min_area = get_smallest_contour(interior_contours)
+
+    if debug:
+        debug_img = cv.drawContours(img, [smallest_contour], 0, consts.BLUE, 3)
+        debug_img = cv.drawContours(debug_img, [largest_contour], 0, consts.GREEN, 3)
+        gui.showImage(debug_img)
+
+    min_ellipse = cv.fitEllipse(smallest_contour)
+    true_center = min_ellipse[0]
+
+    print(np.sqrt((e_center[0]-true_center[0])**2+(e_center[1]-true_center[1])**2))
 
     # Validate the found ellipse. If the ellipse is too eccentric, reject the found ellipse
     e_eccentricity = np.sqrt(1 - e_size[0] ** 2 / e_size[1] ** 2)
-    print(f'Area: {max_area}, Eccentricity: {e_eccentricity}')
+    if debug:
+        print(f'Area: {max_area}, Eccentricity: {e_eccentricity}')
 
     homography_mat = None
-    for i in range(consts.PERSPECTIVE_POINTS):
-        angle = i / consts.PERSPECTIVE_POINTS * 2 * np.pi
+    for i in range(4):
+        i
 
-    homography_mat = cv.findHomography(source_pts, dest_pts)
+    # homography_mat = cv.findHomography(source_pts, dest_pts)
 
     return homography_mat
 
