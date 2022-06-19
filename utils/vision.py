@@ -1,5 +1,6 @@
 import cv2 as cv
 import numpy as np
+from numpy.linalg import norm
 
 import consts
 # If cv2.imshow is not used, should use opencv-python-headless
@@ -14,6 +15,10 @@ def get_largest_contor(cnts):
             max_area = area
             largest_contour = cnt
     return largest_contour, max_area
+
+
+# def get_angle(pt_a, pt_b):
+#     return np.arccos(np.dot(pt_a, pt_b) / (norm(pt_a) * norm(pt_a)))
 
 
 def crop_image(img):
@@ -142,12 +147,6 @@ def center_bull(img):
     # Get a mask of only 'green' pixels
     img_mid_hsv = cv.cvtColor(img_mid, cv.COLOR_BGR2HSV)
 
-    # lower_red_hue_rng = cv.inRange(img_mid_hsv, (0, 100, 100), (10, 255, 255))
-    # upper_red_hug_rng = cv.inRange(img_mid_hsv, (160, 100, 100), (179, 255, 255))
-    #
-    # img_red_hue = cv.addWeighted(lower_red_hue_rng, 1, upper_red_hug_rng, 1, 0)
-    # img_red_hue = cv.GaussianBlur(img_red_hue, (5, 5), cv.BORDER_DEFAULT)
-
     img_green_hue = cv.inRange(img_mid_hsv, (32, 38, 70), (85, 255, 200))
     img_green_hue = cv.GaussianBlur(img_green_hue, (5, 5), cv.BORDER_DEFAULT)
 
@@ -178,9 +177,6 @@ def center_bull(img):
 def frame_diff(img_a, img_b):
     img_a_grey = cv.cvtColor(img_a, cv.COLOR_BGR2GRAY)
     img_b_grey = cv.cvtColor(img_b, cv.COLOR_BGR2GRAY)
-
-    # img_a_grey = cv.blur(img_a_grey, (5, 5))
-    # img_b_grey = cv.blur(img_b_grey, (5, 5))
 
     img_a_grey = cv.GaussianBlur(img_a_grey, (5, 5), cv.BORDER_DEFAULT)
     img_b_grey = cv.GaussianBlur(img_b_grey, (5, 5), cv.BORDER_DEFAULT)
@@ -214,21 +210,21 @@ def clean_diff(thresh):
 
 
 def get_arrow_point(img, cont):
+    center_of_mass = cont.mean(axis=0)[0]
+
     rect_center, rect_size, rect_angle = cv.minAreaRect(cont)
-    rect_angle_rads = rect_angle * 180 / np.pi
-    center_adj = ()
 
-    rect_a = ((), (rect_size[0] // 2, rect_size[1]), rect_angle)
-    rect_b = ((), (rect_size[0] // 2, rect_size[1]), rect_angle)
+    box = cv.boxPoints((rect_center, rect_size, rect_angle))
+    # CV returns line as an array of [pt_x, pt_y, m_x, m_y] so we convert the box points into a similar form to solve
+    box_line = np.array([box[2][0] - box[3][0], box[2][1] - box[3][1], box[2][0], box[2][1]], np.float32)
 
-    # search_zone_a = np.array([pt_a, pt_b, pt_c, pt_f], np.uint8)
-    # search_zone_b = np.array([pt_c, pt_d, pt_e, pt_f], np.uint8)
-    #
-    # mask_a = np.zeros((consts.TRANSFORM_X, consts.TRANSFORM_Y), np.uint8)
-    # mask_b = np.zeros((consts.TRANSFORM_X, consts.TRANSFORM_Y), np.uint8)
-    #
-    # mask_a = cv.fillConvexPoly(mask_a, search_zone_a, 4, 1)
+    line = cv.fitLine(cont, cv.DIST_L2, 0, 0.01, 0.01)
+    line = line.flatten()
 
-    # point_a =
+    a = np.array([[line[0], -box_line[0]], [line[1], -box_line[1]]], np.float32)
+    b = np.array([line[2] - box_line[2], line[3] - box_line[3]], np.float32)
+    r = np.linalg.solve(a, b)
 
-    return
+    intersect_point = (line[2] - r[0] * line[0], line[3] - r[0] * line[1])
+
+    return intersect_point

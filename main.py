@@ -41,6 +41,9 @@ while camera.isOpened():  # cv specific
 
         # if not dartboard.calibrated:
         #     dartboard.update_perspective_mat(frame)
+
+        # Determine if this is required using difference between location of aruco tags between last calibration
+        # frame and this one
         dartboard.update_perspective_mat(frame)
 
         if dartboard.perspective_matrix is not None:
@@ -62,15 +65,15 @@ while camera.isOpened():  # cv specific
                 # print(frame_number, similarity)
                 # gui.showImage(prev_frame)
                 # gui.showImage(foregound_mask)
-                gui.showImage(frame)
-                gui.showImage(frame_adj)
+                # gui.showImage(frame)
+                # gui.showImage(frame_adj)
 
                 thresh = vision.clean_diff(foregound_mask)
                 conts, _ = cv.findContours(thresh, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
                 largest_cont, _ = vision.get_largest_contor(conts)
-                frame_conts = cv.drawContours(frame_adj, [largest_cont], 0, consts.GREEN, 3)
-
-                gui.showImage(frame_conts)
+                # frame_conts = cv.drawContours(frame_adj, [largest_cont], 0, consts.GREEN, 3)
+                #
+                # gui.showImage(frame_conts)
 
                 # impact_point = vision.get_arrow_point(largest_cont)
                 # if impact_point is not None:
@@ -80,6 +83,11 @@ while camera.isOpened():  # cv specific
                 #     print('Nothing returned')
                 # bounding_box = vision.get_arrow_point(frame_adj, largest_cont)
                 # gui.showImage(bounding_box)
+
+                impact_point = vision.get_arrow_point(frame_adj, largest_cont)
+                impact_point = np.intp(impact_point)
+                frame_point = cv.circle(frame_adj, impact_point, 2, consts.RED, 2)
+                gui.showImage(frame_point)
 
                 exec_time = time.time() - start_time
                 print(f'Exection time: {np.round(exec_time, 2)}, fps: {np.round(frame_number / exec_time, 2)}')
