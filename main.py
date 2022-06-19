@@ -6,6 +6,7 @@ import numpy as np
 from utils import gui, vision
 
 from utils.dartboard import Dartboard
+from utils.calibration import Calibrator
 import consts
 
 
@@ -30,6 +31,9 @@ frame_number = 1
 back_sub = cv.createBackgroundSubtractorMOG2(history=30, detectShadows=True)
 # back_sub = cv.bgsegm.createBackgroundSubtractorCNT()
 
+calib = Calibrator()
+calib.import_calibration()
+
 start_time = time.time()
 
 # for frame in camera.capture_continuous(raw_capture, format='bgr', use_video_port=True):
@@ -37,10 +41,6 @@ while camera.isOpened():  # cv specific
     ret, frame = camera.read()  # cv specific
     # frame = frame.array
     if ret:  # cv specific
-
-        # if not dartboard.calibrated:
-        #     dartboard.update_perspective_mat(frame)
-
         # Determine if this is required using difference between location of aruco tags between last calibration
         # frame and this one
         dartboard.update_perspective_mat(frame)
@@ -67,7 +67,7 @@ while camera.isOpened():  # cv specific
 
                 focus_level = vision.get_blur(frame_adj, thresh)
 
-                if max_area > consts.MIN_DART_AREA and focus_level > 22:
+                if max_area > consts.MIN_DART_AREA and focus_level > consts.MIN_FOCUS:
                     print(f'Max area: {max_area}, Focus level: {focus_level}')
                     impact_point = vision.get_arrow_point(largest_cont, frame_adj, True)
                     impact_point = np.intp(impact_point)
