@@ -23,7 +23,7 @@ th = vision.frame_diff(frame_1_t, frame_2_t)
 gui.showImage(th)
 
 conts, _ = cv.findContours(th, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
-largest_cont, _ = vision.get_largest_contor(conts)
+largest_cont, _ = vision.get_largest_contour(conts)
 frame_conts = cv.drawContours(frame_2_t, [largest_cont], 0, consts.GREEN, 3)
 gui.showImage(frame_conts)
 

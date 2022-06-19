@@ -3,10 +3,9 @@ import time
 # from picamera.array import PiRGBArray
 import cv2 as cv
 import numpy as np
-from utils import gui
+from utils import gui, vision
 
 from utils.dartboard import Dartboard
-import utils.vision as vision
 import consts
 
 
@@ -60,49 +59,33 @@ while camera.isOpened():  # cv specific
                 frame_adj = cv.warpPerspective(frame, dartboard.perspective_matrix,
                                                (consts.TRANSFORM_X, consts.TRANSFORM_Y))
 
-            elif similarity < consts.DART_THRESH and frame_number > 1:
+            if similarity < consts.DART_THRESH and frame_number > 1:
+                thresh = vision.filter_diff_noise(foregound_mask)
 
-                # print(frame_number, similarity)
-                # gui.showImage(prev_frame)
-                # gui.showImage(foregound_mask)
-                # gui.showImage(frame)
-                # gui.showImage(frame_adj)
-
-                thresh = vision.clean_diff(foregound_mask)
                 conts, _ = cv.findContours(thresh, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
-                largest_cont, _ = vision.get_largest_contor(conts)
-                # frame_conts = cv.drawContours(frame_adj, [largest_cont], 0, consts.GREEN, 3)
-                #
-                # gui.showImage(frame_conts)
+                largest_cont, max_area = vision.get_largest_contour(conts)
 
-                # impact_point = vision.get_arrow_point(largest_cont)
-                # if impact_point is not None:
-                #     frame_conts = cv.circle(frame_adj, impact_point, 4, consts.GREEN, 3)
-                #     gui.showImage(frame_conts)
-                # else:
-                #     print('Nothing returned')
-                # bounding_box = vision.get_arrow_point(frame_adj, largest_cont)
-                # gui.showImage(bounding_box)
+                focus_level = vision.get_blur(frame_adj, thresh)
 
-                impact_point = vision.get_arrow_point(frame_adj, largest_cont)
-                impact_point = np.intp(impact_point)
-                frame_point = cv.circle(frame_adj, impact_point, 2, consts.RED, 2)
-                gui.showImage(frame_point)
+                if max_area > consts.MIN_DART_AREA and focus_level > 22:
+                    print(f'Max area: {max_area}, Focus level: {focus_level}')
+                    impact_point = vision.get_arrow_point(largest_cont, frame_adj, True)
+                    impact_point = np.intp(impact_point)
 
-                exec_time = time.time() - start_time
-                print(f'Exection time: {np.round(exec_time, 2)}, fps: {np.round(frame_number / exec_time, 2)}')
-                break
+                    # break
 
             prev_frame = frame_adj
 
         # Clear steam in preparation for next frame
-        frame_number += 1
         # raw_capture.truncate(0)
+        frame_number += 1
     else:
         break
 
 camera.release()  # cv specific
 
+exec_time = time.time() - start_time
+print(f'Exection time: {np.round(exec_time, 2)}, fps: {np.round(frame_number / exec_time, 2)}')
 
 # if __name__ == '__main__':
 #     main_loop()

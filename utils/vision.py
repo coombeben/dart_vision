@@ -3,10 +3,11 @@ import numpy as np
 from numpy.linalg import norm
 
 import consts
+import utils.gui as gui
 # If cv2.imshow is not used, should use opencv-python-headless
 
 
-def get_largest_contor(cnts):
+def get_largest_contour(cnts):
     largest_contour = []
     max_area = 0
     for cnt in cnts:
@@ -21,48 +22,48 @@ def get_largest_contor(cnts):
 #     return np.arccos(np.dot(pt_a, pt_b) / (norm(pt_a) * norm(pt_a)))
 
 
-def crop_image(img):
-    """Finds a reasonable region to start work from using the position of the 4 apriltags"""
-    apriltags = cv.aruco.DICT_APRILTAG_36h11
+# def crop_image(img):
+#     """Finds a reasonable region to start work from using the position of the 4 apriltags"""
+#     apriltags = cv.aruco.DICT_APRILTAG_36h11
+#
+#     height, width = img.shape[:2]
+#     region_top, region_left, region_right, region_bottom = (0, width, 0, height)
+#
+#     aruco_dict = cv.aruco.Dictionary_get(cv.aruco.DICT_APRILTAG_36h11)
+#     aruco_params = cv.aruco.DetectorParameters_create()
+#     corners, ids, rejected = cv.aruco.detectMarkers(img, aruco_dict, parameters=aruco_params)
+#
+#     ids = ids.flatten()
+#     if (np.sort(ids) != np.array(range(4))).any():
+#         print('Id tag error')
+#
+#     for (marker_corner_arr, marker_id) in zip(corners, ids):
+#         marker_corners = marker_corner_arr.reshape((4, 2)).astype('int')
+#         bottom_right, bottom_left, top_left, top_right = marker_corners
+#
+#         if marker_id == 0:
+#             region_top = max(bottom_right[1], bottom_left[1])
+#         if marker_id == 1:
+#             region_left = max(top_right[0], bottom_right[0])
+#         if marker_id == 2:
+#             region_right = min(top_left[0], bottom_left[0])
+#         if marker_id == 3:
+#             region_bottom = min(top_left[1], top_right[1])
+#
+#         # cv.aruco.drawDetectedMarkers(img, corners, ids)
+#
+#     return img[region_top:region_bottom, region_left:region_right]
 
-    height, width = img.shape[:2]
-    region_top, region_left, region_right, region_bottom = (0, width, 0, height)
 
-    aruco_dict = cv.aruco.Dictionary_get(cv.aruco.DICT_APRILTAG_36h11)
-    aruco_params = cv.aruco.DetectorParameters_create()
-    corners, ids, rejected = cv.aruco.detectMarkers(img, aruco_dict, parameters=aruco_params)
-
-    ids = ids.flatten()
-    if (np.sort(ids) != np.array(range(4))).any():
-        print('Id tag error')
-
-    for (marker_corner_arr, marker_id) in zip(corners, ids):
-        marker_corners = marker_corner_arr.reshape((4, 2)).astype('int')
-        bottom_right, bottom_left, top_left, top_right = marker_corners
-
-        if marker_id == 0:
-            region_top = max(bottom_right[1], bottom_left[1])
-        if marker_id == 1:
-            region_left = max(top_right[0], bottom_right[0])
-        if marker_id == 2:
-            region_right = min(top_left[0], bottom_left[0])
-        if marker_id == 3:
-            region_bottom = min(top_left[1], top_right[1])
-
-        # cv.aruco.drawDetectedMarkers(img, corners, ids)
-
-    return img[region_top:region_bottom, region_left:region_right]
-
-
-# def fill_holes(img, thresh_param=127):
-#     """Returns a threshold image of the board"""
-#     _, img_th = cv.threshold(img, thresh_param, 255, cv.THRESH_BINARY_INV)
-#     img_floodfill = img_th.copy()
-#     h, w = img_th.shape[:2]
-#     mask = np.zeros((h+2, w+2), np.uint8)
-#     cv.floodFill(img_floodfill, mask, (0, 0), 255)
-#     img_floodfill_inv = cv.bitwise_not(img_floodfill)
-#     return img_th | img_floodfill_inv
+def fill_holes(thresh, thresh_param=127):
+    """Returns a threshold image of the board"""
+    # _, img_th = cv.threshold(img, thresh_param, 255, cv.THRESH_BINARY_INV)
+    img_floodfill = thresh.copy()
+    h, w = thresh.shape[:2]
+    mask = np.zeros((h+2, w+2), np.uint8)
+    cv.floodFill(img_floodfill, mask, (0, 0), 255)
+    img_floodfill_inv = cv.bitwise_not(img_floodfill)
+    return thresh | img_floodfill_inv
 
 
 def get_face(img):
@@ -78,61 +79,66 @@ def get_face(img):
     img_comb_hue = cv.addWeighted(img_green_hue, 1, img_red_hue, 1, 0)
 
     # Postprocessing: blur the output so that the silver lines are ignored
-    img_comb_hue = cv.GaussianBlur(img_comb_hue, (5, 5), cv.BORDER_DEFAULT)
+    img_comb_hue = cv.GaussianBlur(img_comb_hue, (7, 7), cv.BORDER_DEFAULT)
 
     return img_comb_hue
 
 
 def get_perspective_mat(thresh):
     """Gets the"""
-    contours, hierarchy = cv.findContours(thresh, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
-    largest_contour, max_area = get_largest_contor(contours)
+    contours, _ = cv.findContours(thresh, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
+    largest_contour, max_area = get_largest_contour(contours)
 
-    ellipse = cv.fitEllipse(largest_contour)
-    e_center, e_size = (ellipse[0], ellipse[1])
+    e_center, e_size, _ = cv.fitEllipse(largest_contour)
 
     # Validate the found ellipse. If the ellipse is too eccentric, reject the found ellipse
-    e_eccentricity = np.sqrt(1 - e_size[0] ** 2 / e_size[0] ** 2)
+    e_eccentricity = np.sqrt(1 - e_size[0] ** 2 / e_size[1] ** 2)
     # print(f'Area: {max_area}, Eccentricity: {e_eccentricity}')
 
-    if e_eccentricity < consts.MAX_ECCENTRICITY and max_area > consts.MIN_AREA:
-        top, right, bottom, left = ([e_center[0], e_center[1] - e_size[1] / 2], [e_center[0] + e_size[0] / 2, e_center[1]],
-                                    [e_center[0], e_center[1] + e_size[1] / 2], [e_center[0] - e_size[0] / 2, e_center[1]])
+    perspective_mat = None
+    if e_eccentricity < consts.MAX_ECCENTRICITY and max_area > consts.MIN_DARTBOARD_AREA:
+        top, right, bottom, left = ([e_center[0], e_center[1] - e_size[1] / 2],
+                                    [e_center[0] + e_size[0] / 2, e_center[1]],
+                                    [e_center[0], e_center[1] + e_size[1] / 2],
+                                    [e_center[0] - e_size[0] / 2, e_center[1]])
 
         source_pts = np.float32([top, right, bottom, left])
-        dest_pts = np.float32([[consts.TRANSFORM_X // 2, 0], [consts.TRANSFORM_X, consts.TRANSFORM_Y // 2],
-                               [consts.TRANSFORM_X // 2, consts.TRANSFORM_Y], [0, consts.TRANSFORM_Y // 2]])
+        dest_pts = np.float32([[consts.TRANSFORM_X // 2, consts.PAD_SCOREZONE],
+                               [consts.TRANSFORM_X - consts.PAD_SCOREZONE, consts.TRANSFORM_Y // 2],
+                               [consts.TRANSFORM_X // 2, consts.TRANSFORM_Y - consts.PAD_SCOREZONE],
+                               [consts.PAD_SCOREZONE, consts.TRANSFORM_Y // 2]])
 
-        return cv.getPerspectiveTransform(source_pts, dest_pts)
-    else:
-        return None
+        perspective_mat = cv.getPerspectiveTransform(source_pts, dest_pts)
+
+    return perspective_mat
 
 
-def perspective_correction(img_cropped, thresh):
-    """Adjusts the perspective of img_cropped so that it is square on"""
-    h, w = thresh.shape[:2]
-
-    contours, hierarchy = cv.findContours(thresh, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
-
-    largest_contour, max_area = get_largest_contor(contours)
+# noinspection DuplicatedCode
+def get_homography_mat(thresh):
+    """Gets the homography matrix to adjust the perspetive"""
+    filled_face = fill_holes(thresh)
+    contours, _ = cv.findContours(filled_face, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
+    largest_contour, max_area = get_largest_contour(contours)
 
     ellipse = cv.fitEllipse(largest_contour)
-    # img_cropped = cv.drawContours(img_cropped, largest_contour, -1, consts.GREEN, 3)
-    # cv.ellipse(img_cropped, ellipse, consts.GREEN, 3)
+    e_center, e_size, e_angle = ellipse
 
-    e_center = ellipse[0]
-    e_size = ellipse[1]
+    mask = np.zeros_like(thresh, np.uint8)
+    mask = cv.ellipse(mask, ellipse, (255, 255, 255), -1)
 
-    top, right, bottom, left = ([e_center[0], e_center[1] - e_size[1] / 2], [e_center[0] + e_size[0] / 2, e_center[1]],
-                                [e_center[0], e_center[1] + e_size[1] / 2], [e_center[0] - e_size[0] / 2, e_center[1]])
+    masked_thresh = cv.bitwise_and(thresh, thresh, mask=mask)
 
-    source_pts = np.float32([top, right,
-                             bottom, left])
-    dest_pts = np.float32([[540, 0], [1080, 540],
-                           [540, 1080], [0, 540]])
+    # Validate the found ellipse. If the ellipse is too eccentric, reject the found ellipse
+    e_eccentricity = np.sqrt(1 - e_size[0] ** 2 / e_size[1] ** 2)
+    print(f'Area: {max_area}, Eccentricity: {e_eccentricity}')
 
-    perspective_mat = cv.getPerspectiveTransform(source_pts, dest_pts)
-    return cv.warpPerspective(img_cropped, perspective_mat, (1080, 1080))
+    homography_mat = None
+    for i in range(consts.PERSPECTIVE_POINTS):
+        angle = i / consts.PERSPECTIVE_POINTS * 2 * np.pi
+
+    homography_mat = cv.findHomography(source_pts, dest_pts)
+
+    return homography_mat
 
 
 def center_bull(img):
@@ -196,20 +202,36 @@ def frame_diff(img_a, img_b):
     return thresh
 
 
-def clean_diff(thresh):
+def filter_diff_noise(thresh, debug=False):
     # Remove shadows
     _, thresh = cv.threshold(thresh, 200, 255, cv.THRESH_BINARY)
 
     # Remove noise
-    thresh = cv.GaussianBlur(thresh, (7, 7), cv.BORDER_DEFAULT)
+    thresh = cv.GaussianBlur(thresh, (9, 9), cv.BORDER_DEFAULT)
 
-    kernel = np.ones((7, 7), np.uint8)
+    kernel = np.ones((9, 9), np.uint8)
     thresh = cv.morphologyEx(thresh, cv.MORPH_CLOSE, kernel)
+
+    _, thresh = cv.threshold(thresh, 127, 255, cv.THRESH_BINARY)
+
+    if debug:
+        gui.showImage(thresh)
 
     return thresh
 
 
-def get_arrow_point(img, cont):
+def get_blur(img, mask, debug=False):
+    x, y, w, h = cv.boundingRect(mask)
+    if w < 2 or h < 2:
+        return 0
+
+    img_cropped = img[y:y+h, x:x+w].copy()
+    img_cropped = cv.cvtColor(img_cropped, cv.COLOR_BGR2GRAY)
+
+    return cv.Laplacian(img_cropped, cv.CV_64F).var()
+
+
+def get_arrow_point(cont, img=None, debug=False):
     """Returns the coordinates of the intersection of the dart and the board"""
     # Basic logic:
     # 1) fit a rectangle and line through the dart contour.
@@ -248,5 +270,11 @@ def get_arrow_point(img, cont):
     for ip in possible_intersect_points:
         if norm(ip - center_of_mass) > max_dist:
             intersect_point = ip
+
+    if debug:
+        debug_img = cv.polylines(img, [np.intp(box)], True, consts.GREEN)
+        debug_img = cv.line(debug_img, np.intp(line[2:4]), np.intp(intersect_point), consts.GREEN, 3)
+        debug_img = cv.circle(debug_img, np.intp(intersect_point), 3, consts.RED, 3)
+        gui.showImage(debug_img)
 
     return intersect_point
