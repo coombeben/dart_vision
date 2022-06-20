@@ -4,6 +4,13 @@ import numpy as np
 import consts
 import utils.gui as gui
 
+TREBLE_OUTER = consts.TRANSFORM_X - consts.PAD_SCOREZONE
+TREBLE_INNTER = int(TREBLE_OUTER * (162 / 170))
+DOUBLE_OUTER = int(TREBLE_OUTER * (107 / 170))
+DOUBLE_INNER = int(TREBLE_OUTER * (99 / 170))
+SEMIBULL = int(TREBLE_OUTER * (32 / 170))
+BULL = int(TREBLE_OUTER * (12.7 / 170))
+
 
 class DartDetector:
     def __init__(self):
@@ -50,6 +57,9 @@ class DartDetector:
         intersect_point = self._get_dart_point(max_cont, img_a, debug=debug)
 
         return intersect_point
+
+    def get_points(self, pt_x, pt_y):
+        pass
 
     def _get_dart_point(self, cont, img=None, debug=False):
         center_of_mass = cont.mean(axis=0)[0]

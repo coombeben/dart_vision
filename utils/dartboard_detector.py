@@ -18,15 +18,15 @@ class Detector:
         self.perspective_mat_b = None
         self.perspective_mat = None
 
-    def correct_image(self, img):
+    def correct_image(self, img, debug=False):
         recalculate = False
         # First step, required for initial setup only
         if not self._is_valid_a(img):
-            self._get_perspective_mat_a(img)
-            self._get_perspective_mat_b(img)
+            self._get_perspective_mat_a(img, debug)
+            self._get_perspective_mat_b(img, debug)
             recalculate = True
         if not self._is_valid_b(img):
-            self._get_perspective_mat_b(img)
+            self._get_perspective_mat_b(img, debug)
             recalculate = True
 
         # If either perspective matrix could not be calculated from the scene, return nothing
@@ -39,10 +39,10 @@ class Detector:
 
         return cv.warpPerspective(img, self.perspective_mat, consts.TRANSFORM)
 
-    def recalculate_perspective(self, img):
+    def recalculate_perspective(self, img, debug=False):
         """Used to manually recalculate the perspective matrices"""
-        self._get_perspective_mat_a(img)
-        self._get_perspective_mat_b(img)
+        self._get_perspective_mat_a(img, debug)
+        self._get_perspective_mat_b(img, debug)
 
     def _is_valid_a(self, img) -> bool:
         """Checks that all 4 aruco tags can still be detected using current perspective matrix
@@ -79,7 +79,7 @@ class Detector:
         tag_position = [2, 3, 0, 1]  # Indicates which corner of the marker to take for the ith marker id
 
         for (marker_corner_arr, marker_id) in zip(corners, ids):
-            marker_corners = marker_corner_arr.reshape((4, 2)).astype('int')
+            marker_corners = marker_corner_arr.reshape((4, 2)).astype('float32')
 
             source_pts[marker_id] = marker_corners[tag_position[marker_id]]
 
@@ -123,12 +123,20 @@ class Detector:
             debug_img = cv.ellipse(img, (e_center, e_size, e_angle), consts.GREEN, 3)
             gui.showImage(debug_img)
 
+        # Opencv normalises ellipses so that h > w. Here we ensure that h refers to y-height and w refers to x-width
+        max_x, max_y = largest_contour.max(axis=0).flatten()
+        semi_major, semi_minor = e_size
+        if max_x < max_y:
+            h, w = (semi_major, semi_minor)
+        else:
+            h, w = (semi_minor, semi_major)
+
         perspective_mat_b = None
         if e_eccentricity < consts.MAX_ECCENTRICITY and max_area > consts.MIN_DARTBOARD_AREA:
-            source_pts = np.float32([[e_center[0], e_center[1] - e_size[1] / 2],
-                                     [e_center[0] + e_size[0] / 2, e_center[1]],
-                                     [e_center[0], e_center[1] + e_size[1] / 2],
-                                     [e_center[0] - e_size[0] / 2, e_center[1]]])
+            source_pts = np.float32([[e_center[0], e_center[1] - h / 2],
+                                     [e_center[0] + w / 2, e_center[1]],
+                                     [e_center[0], e_center[1] + h / 2],
+                                     [e_center[0] - w / 2, e_center[1]]])
             dest_pts = np.float32([[consts.TRANSFORM_X // 2, consts.PAD_SCOREZONE],
                                    [consts.TRANSFORM_X - consts.PAD_SCOREZONE, consts.TRANSFORM_Y // 2],
                                    [consts.TRANSFORM_X // 2, consts.TRANSFORM_Y - consts.PAD_SCOREZONE],
