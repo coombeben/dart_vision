@@ -17,45 +17,47 @@ class Detector:
         self.perspective_mat_a = None
         self.perspective_mat_b = None
         self.perspective_mat = None
-        self.recalculate_mat = True
 
     def correct_image(self, img):
+        recalculate = False
         # First step, required for initial setup only
-        if self.perspective_mat_a is None:
+        if not self._is_valid_a(img):
             self._get_perspective_mat_a(img)
-            if self.perspective_mat_a is None:
-                return None
-            else:
-                self._get_perspective_mat_b(img)
-        if self.perspective_mat_b is None:
+            recalculate = True
+        if not self._is_valid_b(img):
             self._get_perspective_mat_b(img)
-            if self.perspective_mat_b is None:
-                return None
+            recalculate = True
 
-        # Only need to calculate this again if either matrix was recalculated
-        if self.recalculate_mat:
+        # If either perspective matrix could not be calculated from the scene, return nothing
+        if self.perspective_mat_a is None or self.perspective_mat_b is None:
+            return None
+
+        # Only need to calculate this again if either matrix was redefined
+        if recalculate:
             self.perspective_mat = self.perspective_mat_b.dot(self.perspective_mat_a)
 
         return cv.warpPerspective(img, self.perspective_mat, consts.TRANSFORM)
 
-    def validate_mat_a(self, img):
+    def _is_valid_a(self, img) -> bool:
         """Checks that all 4 aruco tags can still be detected using current perspective matrix
         If this returns True then perspective_mat_a is still valid"""
-        img_a = cv.warpPerspective(img, self.perspective_mat_a, consts.TRANSFORM)
-        _, ids, _ = cv.aruco.detectMarkers(img_a, self.aruco_dict, parameters=self.aruco_params)
+        if self.perspective_mat_a is None:
+            return False
+        else:
+            img_a = cv.warpPerspective(img, self.perspective_mat_a, consts.TRANSFORM)
+            _, ids, _ = cv.aruco.detectMarkers(img_a, self.aruco_dict, parameters=self.aruco_params)
+            if ids is None:
+                return False
+        return ids.shape[0] == 4
 
-        if ids is None:
-            self.recalculate_mat = False
-
-        self.recalculate_mat = ids.shape[0] == 4
-
-    def validate_mat_b(self, img):
+    def _is_valid_b(self, img):
         """Performs some check to see if the dartboard has moved.
         Maybe compare green pixels in hsv and check difference is below threshold?"""
-        return True
+        return self.perspective_mat_b is None
 
     def _get_perspective_mat_a(self, img, debug=False):
-        """Corrects the perspective to be square on with the board. Required if the camera moves"""
+        """Corrects the perspective to be square on with the board. Required if the camera moves.
+        Will trigger the recalculation of mat_b too"""
         corners, ids, _ = cv.aruco.detectMarkers(img, self.aruco_dict, parameters=self.aruco_params)
         ids = ids.flatten()
 
@@ -64,7 +66,8 @@ class Detector:
             gui.showImage(debug_img)
 
         if len(ids) < 4:
-            return None
+            self.perspective_mat_a = None
+            return
 
         source_pts = np.zeros((4, 2), np.float32)
         tag_position = [2, 3, 0, 1]  # Indicates which corner of the marker to take for the ith marker id
@@ -81,7 +84,7 @@ class Detector:
                              [self.PAD_A, consts.TRANSFORM_Y - self.PAD_A]], np.float32)
 
         self.perspective_mat_a = cv.getPerspectiveTransform(source_pts, dest_pts)
-        self.recalculate_mat = True
+        self._get_perspective_mat_b(img, debug=debug)
 
     def _get_perspective_mat_b(self, img, debug=False):
         """Centers the dartboard and makes final adjustments to scale. Required if the dartboard moves
@@ -127,4 +130,3 @@ class Detector:
             perspective_mat_b = cv.getPerspectiveTransform(source_pts, dest_pts)
 
         self.perspective_mat_b = perspective_mat_b
-        self.recalculate_mat = True
