@@ -23,6 +23,7 @@ class Detector:
         # First step, required for initial setup only
         if not self._is_valid_a(img):
             self._get_perspective_mat_a(img)
+            self._get_perspective_mat_b(img)
             recalculate = True
         if not self._is_valid_b(img):
             self._get_perspective_mat_b(img)
@@ -37,6 +38,11 @@ class Detector:
             self.perspective_mat = self.perspective_mat_b.dot(self.perspective_mat_a)
 
         return cv.warpPerspective(img, self.perspective_mat, consts.TRANSFORM)
+
+    def recalculate_perspective(self, img):
+        """Used to manually recalculate the perspective matrices"""
+        self._get_perspective_mat_a(img)
+        self._get_perspective_mat_b(img)
 
     def _is_valid_a(self, img) -> bool:
         """Checks that all 4 aruco tags can still be detected using current perspective matrix
@@ -84,12 +90,13 @@ class Detector:
                              [self.PAD_A, consts.TRANSFORM_Y - self.PAD_A]], np.float32)
 
         self.perspective_mat_a = cv.getPerspectiveTransform(source_pts, dest_pts)
-        self._get_perspective_mat_b(img, debug=debug)
 
     def _get_perspective_mat_b(self, img, debug=False):
         """Centers the dartboard and makes final adjustments to scale. Required if the dartboard moves
         Should only be called if perspective_mat_a is not None"""
-        img = cv.warpPerspective(img, self.perspective_mat_a, (consts.TRANSFORM_X, consts.TRANSFORM_Y))
+        if self.perspective_mat_a is None:
+            return
+        img = cv.warpPerspective(img, self.perspective_mat_a, consts.TRANSFORM)
 
         img_hsv = cv.cvtColor(img, cv.COLOR_BGR2HSV)
 
