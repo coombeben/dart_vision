@@ -49,37 +49,7 @@ def get_min_max_contours(cnts):
 #     return np.arccos(np.dot(pt_a, pt_b) / (norm(pt_a) * norm(pt_a)))
 
 
-# def crop_image(img):
-#     """Finds a reasonable region to start work from using the position of the 4 apriltags"""
-#     apriltags = cv.aruco.DICT_APRILTAG_36h11
-#
-#     height, width = img.shape[:2]
-#     region_top, region_left, region_right, region_bottom = (0, width, 0, height)
-#
-#     aruco_dict = cv.aruco.Dictionary_get(cv.aruco.DICT_APRILTAG_36h11)
-#     aruco_params = cv.aruco.DetectorParameters_create()
-#     corners, ids, rejected = cv.aruco.detectMarkers(img, aruco_dict, parameters=aruco_params)
-#
-#     ids = ids.flatten()
-#     if (np.sort(ids) != np.array(range(4))).any():
-#         print('Id tag error')
-#
-#     for (marker_corner_arr, marker_id) in zip(corners, ids):
-#         marker_corners = marker_corner_arr.reshape((4, 2)).astype('int')
-#         bottom_right, bottom_left, top_left, top_right = marker_corners
-#
-#         if marker_id == 0:
-#             region_top = max(bottom_right[1], bottom_left[1])
-#         if marker_id == 1:
-#             region_left = max(top_right[0], bottom_right[0])
-#         if marker_id == 2:
-#             region_right = min(top_left[0], bottom_left[0])
-#         if marker_id == 3:
-#             region_bottom = min(top_left[1], top_right[1])
-#
-#         # cv.aruco.drawDetectedMarkers(img, corners, ids)
-#
-#     return img[region_top:region_bottom, region_left:region_right]
+
 
 
 def fill_holes(thresh):
