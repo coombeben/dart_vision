@@ -59,7 +59,14 @@ class DartDetector:
         return intersect_point
 
     def get_points(self, pt_x, pt_y):
-        pass
+        score_zones = [20, 1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5]
+        radius = cv.norm((consts.TRANSFORM_X / 2 - pt_x, consts.TRANSFORM_Y / 2 - pt_y))
+        theta = np.arctan((pt_y - consts.TRANSFORM_Y) / (pt_x - consts.TRANSFORM_X))
+        if pt_x == consts.TRANSFORM_X / 2:
+            if pt_y > consts.TRANSFORM_Y / 2:
+                theta = np.pi / 4
+            else:
+                theta = -np.pi/  4
 
     def _get_dart_point(self, cont, img=None, debug=False):
         center_of_mass = cont.mean(axis=0)[0]
