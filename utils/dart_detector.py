@@ -4,12 +4,54 @@ import numpy as np
 import consts
 import utils.gui as gui
 
-TREBLE_OUTER = consts.TRANSFORM_X - consts.PAD_SCOREZONE
-TREBLE_INNTER = int(TREBLE_OUTER * (162 / 170))
-DOUBLE_OUTER = int(TREBLE_OUTER * (107 / 170))
-DOUBLE_INNER = int(TREBLE_OUTER * (99 / 170))
-SEMIBULL = int(TREBLE_OUTER * (32 / 170))
-BULL = int(TREBLE_OUTER * (12.7 / 170))
+# Parameters used to define acceptable bounds for the radius.
+DOUBLE_OUTER = consts.TRANSFORM_X / 2 - consts.PAD_SCOREZONE
+DOUBLE_INNER = DOUBLE_OUTER * (159 / 170)
+TREBLE_OUTER = DOUBLE_OUTER * (106 / 170)
+TREBLE_INNER = DOUBLE_OUTER * (97 / 170)
+SEMI_BULL = DOUBLE_OUTER * (16 / 170)
+BULL = DOUBLE_OUTER * (6.35 / 170)
+
+
+def angle_between(a, b=(0, -1)) -> float:
+    """Returns clockwise angle from vector b to vector a"""
+    if a[0] < 0:
+        return 2 * np.pi - np.arccos((np.dot(a, b)) / (cv.norm(a) * cv.norm(b)))
+    else:
+        return np.arccos((np.dot(a, b)) / (cv.norm(a)*cv.norm(b)))
+
+
+def get_ssim(i1, i2):
+    """Returns the structural similarity between images i1 and i2. np.mean(get_ssim(i1, i2)) will give MSSIM"""
+    C1 = 6.5025
+    C2 = 58.5225
+    # INITS
+    I1 = np.float32(i1)  # cannot calculate on one byte large values
+    I2 = np.float32(i2)
+    I2_2 = I2 * I2  # I2^2
+    I1_2 = I1 * I1  # I1^2
+    I1_I2 = I1 * I2  # I1 * I2
+    # END INITS
+    # PRELIMINARY COMPUTING
+    mu1 = cv.GaussianBlur(I1, (11, 11), 1.5)
+    mu2 = cv.GaussianBlur(I2, (11, 11), 1.5)
+    mu1_2 = mu1 * mu1
+    mu2_2 = mu2 * mu2
+    mu1_mu2 = mu1 * mu2
+    sigma1_2 = cv.GaussianBlur(I1_2, (11, 11), 1.5)
+    sigma1_2 -= mu1_2
+    sigma2_2 = cv.GaussianBlur(I2_2, (11, 11), 1.5)
+    sigma2_2 -= mu2_2
+    sigma12 = cv.GaussianBlur(I1_I2, (11, 11), 1.5)
+    sigma12 -= mu1_mu2
+    t1 = 2 * mu1_mu2 + C1
+    t2 = 2 * sigma12 + C2
+    t3 = t1 * t2  # t3 = ((2*mu1_mu2 + C1).*(2*sigma12 + C2))
+    t1 = mu1_2 + mu2_2 + C1
+    t2 = sigma1_2 + sigma2_2 + C2
+    t1 = t1 * t2  # t1 =((mu1_2 + mu2_2 + C1).*(sigma1_2 + sigma2_2 + C2))
+    ssim_map = cv.divide(t3, t1)  # ssim_map =  t3./t1;
+    return ssim_map
 
 
 class DartDetector:
@@ -47,7 +89,7 @@ class DartDetector:
         a_grey = cv.cvtColor(img_a, cv.COLOR_BGR2GRAY)
         b_grey = cv.cvtColor(img_b, cv.COLOR_BGR2GRAY)
 
-        diff = self._get_mssism(a_grey, b_grey)
+        diff = get_ssim(a_grey, b_grey)
         diff = (diff * 255).astype('uint8')
 
         _, thresh = cv.threshold(diff, 175, 255, cv.THRESH_BINARY_INV)  # | cv.THRESH_OTSU
@@ -58,15 +100,31 @@ class DartDetector:
 
         return intersect_point
 
-    def get_points(self, pt_x, pt_y):
+    def get_points(self, intersect_point) -> (int, bool):
+        """Given an intersection point, returns the corresponding score and whether it was a double"""
+        pt_x, pt_y = intersect_point
+
         score_zones = [20, 1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5]
         radius = cv.norm((consts.TRANSFORM_X / 2 - pt_x, consts.TRANSFORM_Y / 2 - pt_y))
-        theta = np.arctan((pt_y - consts.TRANSFORM_Y) / (pt_x - consts.TRANSFORM_X))
-        if pt_x == consts.TRANSFORM_X / 2:
-            if pt_y > consts.TRANSFORM_Y / 2:
-                theta = np.pi / 4
-            else:
-                theta = -np.pi/  4
+        theta = angle_between((pt_x - consts.TRANSFORM_X / 2, pt_y - consts.TRANSFORM_Y / 2))
+
+        points = 0
+        double = False
+
+        if radius < BULL:
+            points = 50
+            double = True
+        elif radius < SEMI_BULL:
+            points = 25
+        elif radius < DOUBLE_OUTER:  # If dart landed in board:
+            points = score_zones[int(np.floor(((theta + np.pi/20) % (2 * np.pi)) * (10 / np.pi)))]
+            print(f'Points: {points}, Radius: {radius}, Treble inner: {TREBLE_INNER}, Treble outer: {TREBLE_OUTER}')
+            if DOUBLE_INNER <= radius < DOUBLE_OUTER:
+                points *= 2
+                double = True
+            elif TREBLE_INNER <= radius < TREBLE_OUTER:
+                points *= 3
+        return points, double
 
     def _get_dart_point(self, cont, img=None, debug=False):
         center_of_mass = cont.mean(axis=0)[0]
@@ -108,37 +166,6 @@ class DartDetector:
             gui.showImage(debug_img)
 
         return intersect_point
-
-    def _get_mssism(self, i1, i2):
-        C1 = 6.5025
-        C2 = 58.5225
-        # INITS
-        I1 = np.float32(i1)  # cannot calculate on one byte large values
-        I2 = np.float32(i2)
-        I2_2 = I2 * I2  # I2^2
-        I1_2 = I1 * I1  # I1^2
-        I1_I2 = I1 * I2  # I1 * I2
-        # END INITS
-        # PRELIMINARY COMPUTING
-        mu1 = cv.GaussianBlur(I1, (11, 11), 1.5)
-        mu2 = cv.GaussianBlur(I2, (11, 11), 1.5)
-        mu1_2 = mu1 * mu1
-        mu2_2 = mu2 * mu2
-        mu1_mu2 = mu1 * mu2
-        sigma1_2 = cv.GaussianBlur(I1_2, (11, 11), 1.5)
-        sigma1_2 -= mu1_2
-        sigma2_2 = cv.GaussianBlur(I2_2, (11, 11), 1.5)
-        sigma2_2 -= mu2_2
-        sigma12 = cv.GaussianBlur(I1_I2, (11, 11), 1.5)
-        sigma12 -= mu1_mu2
-        t1 = 2 * mu1_mu2 + C1
-        t2 = 2 * sigma12 + C2
-        t3 = t1 * t2  # t3 = ((2*mu1_mu2 + C1).*(2*sigma12 + C2))
-        t1 = mu1_2 + mu2_2 + C1
-        t2 = sigma1_2 + sigma2_2 + C2
-        t1 = t1 * t2  # t1 =((mu1_2 + mu2_2 + C1).*(sigma1_2 + sigma2_2 + C2))
-        ssim_map = cv.divide(t3, t1)  # ssim_map =  t3./t1;
-        return ssim_map
 
     def _get_largest_contour(self, conts):
         largest_contour = []
