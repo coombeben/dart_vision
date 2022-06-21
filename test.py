@@ -1,6 +1,7 @@
 import cv2 as cv
 import numpy as np
 import timeit
+import time
 
 import consts
 import utils.vision as vision
@@ -9,28 +10,54 @@ from utils.dartboard_detector import Detector
 from utils.dart_detector import DartDetector
 
 
-def check_points(intersect_point, dart, canvas):
-    pts, double = dart.get_points(intersect_point)
-    print(pts, double)
-    show_canvas = cv.circle(canvas.copy(), intersect_point, 3, consts.RED, 3)
-    gui.showImage(show_canvas)
+start_time = time.time()
+camera = cv.VideoCapture('IMG_E1024.mov')
+# back_sub = cv.createBackgroundSubtractorMOG2(history=100)
+detector = Detector()
+frame_number = 0
 
+make_new_subtractor = True
+masks = None
+significant_frames = [-3]
+historic = []
+frame_scores = []
 
-frame1 = cv.imread('frame_1.jpg')
-frame2 = cv.imread('frame_2.jpg')
+while camera.isOpened():
+    ret, frame = camera.read()
+    if ret:
+        frame_number += 1
+        frame_adj, recalculate = detector.correct_image(frame)
+        if frame_adj is None:
+            make_new_subtractor = True
+        else:
+            if make_new_subtractor:
+                # Reset the subtractor if the board becomes obscured (i.e. someone removes their darts)
+                back_sub = cv.createBackgroundSubtractorMOG2(history=100)
+                make_new_subtractor = False
 
-det = Detector()
-dart = DartDetector()
-frame1_adj = det.correct_image(frame1)
-frame2_adj = det.correct_image(frame2)
+            foreground_mask = back_sub.apply(frame_adj)
 
-# TREBLE_OUTER = consts.TRANSFORM_X // 2 - consts.PAD_SCOREZONE
-# arr = [TREBLE_OUTER, int(TREBLE_OUTER * (161 / 170)), int(TREBLE_OUTER * (107 / 170)),
-#        int(TREBLE_OUTER * (98 / 170)), int(TREBLE_OUTER * (16 / 170)), int(TREBLE_OUTER * (6.35 / 170))]
-#
-# for rad in arr:
-#     frame1_adj = cv.circle(frame1_adj, (540, 540), rad, consts.GREEN, 3)
-#
-# gui.showImage(frame1_adj)
+            simm = cv.mean(foreground_mask)[0]
+            last_sig_frame = max(significant_frames)
+            if simm > 5 and frame_number > 1:
+                if frame_number - 1 == last_sig_frame:
+                    significant_frames.append(frame_number)
+                    masks = np.dstack((masks, foreground_mask))
+                    frame_scores.append(simm)
+                else:
+                    significant_frames = [frame_number]
+                    masks = np.expand_dims(foreground_mask, axis=2)
+                    frame_scores = [simm]
+            elif frame_number - 1 == last_sig_frame:
+                best_frame_idx = frame_scores.index(max(frame_scores))
+                best_mask = masks[:, :, best_frame_idx]
+                masks = None  # Clear some memory
+                gui.showImage(best_mask, f'Score: {frame_scores[best_frame_idx]}, Frame: {significant_frames[best_frame_idx]}')
+                # Process best mask
+    else:
+        break
 
-check_points((560, 560), dart, frame1_adj)
+camera.release()
+
+print(f'Execution time: {round(time.time() - start_time, 2)}')
+

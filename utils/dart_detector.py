@@ -92,15 +92,26 @@ class DartDetector:
         diff = get_ssim(a_grey, b_grey)
         diff = (diff * 255).astype('uint8')
 
-        _, thresh = cv.threshold(diff, 175, 255, cv.THRESH_BINARY_INV)  # | cv.THRESH_OTSU
+        _, thresh = cv.threshold(diff, 150, 255, cv.THRESH_BINARY_INV)  # | cv.THRESH_OTSU
         contours, _ = cv.findContours(thresh, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
-        max_cont, _ = self._get_largest_contour(contours)
+        max_cont, cont_area = self._get_largest_contour(contours)
 
-        intersect_point = self._get_dart_point(max_cont, img_a, debug=debug)
+        if cont_area > consts.MIN_DART_AREA:
+            if debug:
+                gui.showImage(diff)
+                debug_img = img_a.copy()
+                debug_img = cv.drawContours(debug_img, [max_cont], 0, consts.GREEN, 3)
+                debug_img = cv.putText(debug_img, f'{cont_area}', (0, 1080), cv.FONT_HERSHEY_PLAIN,
+                                       3, (255, 255, 255), 3)
+                gui.showImage(debug_img)
 
-        return intersect_point
+            intersect_point = self._get_dart_point(max_cont, img_a, debug=debug)
 
-    def get_points(self, intersect_point) -> (int, bool):
+            return intersect_point
+        return None
+
+    def get_points(self, intersect_point, img=None, debug=False) -> (int, bool):
+        assert not debug or not (img is None)
         """Given an intersection point, returns the corresponding score and whether it was a double"""
         pt_x, pt_y = intersect_point
 
@@ -118,12 +129,19 @@ class DartDetector:
             points = 25
         elif radius < DOUBLE_OUTER:  # If dart landed in board:
             points = score_zones[int(np.floor(((theta + np.pi/20) % (2 * np.pi)) * (10 / np.pi)))]
-            print(f'Points: {points}, Radius: {radius}, Treble inner: {TREBLE_INNER}, Treble outer: {TREBLE_OUTER}')
             if DOUBLE_INNER <= radius < DOUBLE_OUTER:
                 points *= 2
                 double = True
             elif TREBLE_INNER <= radius < TREBLE_OUTER:
                 points *= 3
+
+        if debug:
+            debug_img = img.copy()
+            debug_img = cv.circle(debug_img, np.intp(intersect_point), 3, consts.BLUE, 3)
+            debug_img = cv.putText(debug_img, f'Points: {points}', (0, 1080),
+                                   cv.FONT_HERSHEY_PLAIN, 3, (255, 255, 255), 3)
+            gui.showImage(debug_img)
+
         return points, double
 
     def _get_dart_point(self, cont, img=None, debug=False):

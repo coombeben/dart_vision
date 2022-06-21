@@ -25,19 +25,19 @@ class Detector:
             self._get_perspective_mat_a(img, debug)
             self._get_perspective_mat_b(img, debug)
             recalculate = True
-        if not self._is_valid_b(img):
+        elif not self._is_valid_b(img):
             self._get_perspective_mat_b(img, debug)
             recalculate = True
 
         # If either perspective matrix could not be calculated from the scene, return nothing
         if self.perspective_mat_a is None or self.perspective_mat_b is None:
-            return None
+            return None, recalculate
 
         # Only need to calculate this again if either matrix was redefined
         if recalculate:
             self.perspective_mat = self.perspective_mat_b.dot(self.perspective_mat_a)
 
-        return cv.warpPerspective(img, self.perspective_mat, consts.TRANSFORM)
+        return cv.warpPerspective(img, self.perspective_mat, consts.TRANSFORM), recalculate
 
     def recalculate_perspective(self, img, debug=False):
         """Used to manually recalculate the perspective matrices"""
@@ -59,7 +59,7 @@ class Detector:
     def _is_valid_b(self, img):
         """Performs some check to see if the dartboard has moved.
         Maybe compare green pixels in hsv and check difference is below threshold?"""
-        return self.perspective_mat_b is None
+        return not (self.perspective_mat_b is None)
 
     def _get_perspective_mat_a(self, img, debug=False):
         """Corrects the perspective to be square on with the board. Required if the camera moves.
