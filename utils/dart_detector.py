@@ -4,6 +4,12 @@ import numpy as np
 import consts
 import utils.gui as gui
 
+KERNEL_WIDTH = 21
+KERNEL_THICKNESS = 3
+KERNEL_ROT = 45
+kernel = np.zeros((KERNEL_WIDTH, KERNEL_WIDTH), np.uint8)
+kernel = cv.line(kernel, (0, 0), (KERNEL_WIDTH, KERNEL_WIDTH), 1, KERNEL_THICKNESS)
+
 # Parameters used to define acceptable bounds for the radius.
 DOUBLE_OUTER = consts.TRANSFORM_X / 2 - consts.PAD_SCOREZONE
 DOUBLE_INNER = DOUBLE_OUTER * (159 / 170)
@@ -105,10 +111,29 @@ class DartDetector:
                                        3, (255, 255, 255), 3)
                 gui.showImage(debug_img)
 
-            intersect_point = self._get_dart_point(max_cont, img_a, debug=debug)
+            intersect_point = self._get_impact_point(max_cont, img_a, debug=debug)
 
             return intersect_point
         return None
+
+    def find_dart_b(self, foreground_mask, debug_img=None, debug=False):
+        foreground_mask = cv.GaussianBlur(foreground_mask, (9, 9), cv.BORDER_DEFAULT)
+        _, thresh = cv.threshold(foreground_mask, 128, 255, cv.THRESH_BINARY)
+        thresh = cv.morphologyEx(thresh, cv.MORPH_CLOSE, kernel)
+
+        contours, _ = cv.findContours(thresh, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
+        max_cont, cont_area = self._get_largest_contour(contours)
+
+        intersect_point = None
+        if cont_area > consts.MIN_DART_AREA:
+            if debug:
+                gui.showImage(thresh)
+                cont_img = debug_img.copy()
+                cont_img = cv.drawContours(cont_img, [max_cont], 0, consts.GREEN, 3)
+                gui.showImage(cont_img, f'Area: {cont_area}')
+
+            intersect_point = self._get_impact_point(max_cont, debug_img, debug=debug)
+        return intersect_point
 
     def get_points(self, intersect_point, img=None, debug=False) -> (int, bool):
         assert not debug or not (img is None)
@@ -138,13 +163,11 @@ class DartDetector:
         if debug:
             debug_img = img.copy()
             debug_img = cv.circle(debug_img, np.intp(intersect_point), 3, consts.BLUE, 3)
-            debug_img = cv.putText(debug_img, f'Points: {points}', (0, 1080),
-                                   cv.FONT_HERSHEY_PLAIN, 3, (255, 255, 255), 3)
-            gui.showImage(debug_img)
+            gui.showImage(debug_img, f'Points: {points}')
 
         return points, double
 
-    def _get_dart_point(self, cont, img=None, debug=False):
+    def _get_impact_point(self, cont, img=None, debug=False):
         center_of_mass = cont.mean(axis=0)[0]
 
         rect_center, rect_size, rect_angle = cv.minAreaRect(cont)
@@ -178,7 +201,7 @@ class DartDetector:
                 intersect_point = ip
 
         if debug:
-            debug_img = cv.polylines(img, [np.intp(box)], True, consts.GREEN)
+            debug_img = cv.polylines(img.copy(), [np.intp(box)], True, consts.GREEN)
             debug_img = cv.line(debug_img, np.intp(line[2:4]), np.intp(intersect_point), consts.GREEN, 3)
             debug_img = cv.circle(debug_img, np.intp(intersect_point), 3, consts.RED, 3)
             gui.showImage(debug_img)

@@ -9,28 +9,37 @@ import utils.vision as vision
 class Detector:
     """Dartboard detector class. Used to adjust the perspective of and center the dartboard"""
     def __init__(self):
-        self.aruco_dict = cv.aruco.Dictionary_get(cv.aruco.DICT_APRILTAG_36h11)
+        # Create a custom dictionary including only the first 4 aruco tags
+        ad = cv.aruco.Dictionary_get(cv.aruco.DICT_APRILTAG_36h11)
+        ad.bytesList = ad.bytesList[:4, :, :]
+        self.aruco_dict = ad
         self.aruco_params = cv.aruco.DetectorParameters_create()
 
         self.PAD_A = 5
+        self.VERIFICATION_RATE = 2  # Every other frame
 
+        self.aruco_obstructed_last = False
         self.perspective_mat_a = None
         self.perspective_mat_b = None
         self.perspective_mat = None
 
-    def correct_image(self, img, debug=False):
+    def correct_image(self, img, frame_number, debug=False):
         recalculate = False
-        # First step, required for initial setup only
+        # Check the frame is valid every nth frame
+        # if frame_number % self.VERIFICATION_RATE == 0:
         if not self._is_valid_a(img):
+            print(f'{frame_number} Recalculating A')
             self._get_perspective_mat_a(img, debug)
             self._get_perspective_mat_b(img, debug)
             recalculate = True
         elif not self._is_valid_b(img):
+            print(f'{frame_number} Recalculating B')
             self._get_perspective_mat_b(img, debug)
             recalculate = True
 
         # If either perspective matrix could not be calculated from the scene, return nothing
         if self.perspective_mat_a is None or self.perspective_mat_b is None:
+            print(f'{frame_number} Recalculation Failed')
             return None, recalculate
 
         # Only need to calculate this again if either matrix was redefined
@@ -47,14 +56,23 @@ class Detector:
     def _is_valid_a(self, img) -> bool:
         """Checks that all 4 aruco tags can still be detected using current perspective matrix
         If this returns True then perspective_mat_a is still valid"""
+        valid = False
         if self.perspective_mat_a is None:
             return False
         else:
             img_a = cv.warpPerspective(img, self.perspective_mat_a, consts.TRANSFORM)
             _, ids, _ = cv.aruco.detectMarkers(img_a, self.aruco_dict, parameters=self.aruco_params)
             if ids is None:
-                return False
-        return ids.shape[0] == 4
+                ids = np.array([])
+
+            if ids.shape[0] == 4:
+                self.aruco_obstructed_last = False
+                valid = True
+            elif not self.aruco_obstructed_last:
+                # Allows for tags to be obstructed for a single frame before the perspective matrix is recalculated
+                self.aruco_obstructed_last = True
+                valid = True
+        return valid
 
     def _is_valid_b(self, img):
         """Performs some check to see if the dartboard has moved.
@@ -72,6 +90,7 @@ class Detector:
             gui.showImage(debug_img)
 
         if len(ids) < 4:
+            print('Could not find all IDs')
             self.perspective_mat_a = None
             return
 
