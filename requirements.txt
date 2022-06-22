@@ -1,4 +1,4 @@
 numpy
 opencv-contrib-python
 matplotlib
-picamera
+bottle

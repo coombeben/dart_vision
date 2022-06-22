@@ -23,7 +23,7 @@ class Detector:
         self.perspective_mat_b = None
         self.perspective_mat = None
 
-    def correct_image(self, img: np.ndarry, frame_number: int, debug: bool = False) -> np.ndarry | None:
+    def correct_image(self, img: np.ndarray, frame_number: int, debug: bool = False) -> np.ndarry | None:
         """All-purpose function to correct the perspective and return the warped image.
         Automatically updated the perspective matrices as and when they become invalid"""
         recalculate = False

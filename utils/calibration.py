@@ -55,12 +55,6 @@ class Calibrator:
             if os.path.exists('calib.npz'):
                 os.remove('calib.npz')
 
-            # with open('calib.npz', 'wb') as f:
-            #     np.save(f, self.ret)
-            #     np.save(f, self.mtx)
-            #     np.save(f, self.dist)
-            #     np.save(f, self.rvecs)
-            #     np.save(f, self.tvecs)
             with open('calib.npz', 'wb') as f:
                 np.savez(f, ret=self.ret, mtx=self.mtx, dist=self.dist, rvecs=self.rvecs, tvecs=self.tvecs)
         else:

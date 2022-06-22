@@ -7,11 +7,11 @@ import consts
 """Misc debug function for printing result"""
 
 
-def showImage(img, info=''):
+def showImage(img, annotation=''):
     """Shows img with axis indicating (x, y) coords"""
     plt.imshow(cv.cvtColor(img, cv.COLOR_BGR2RGB), interpolation='nearest')
-    if info:
-        plt.title(info)
+    if annotation:
+        plt.title(annotation)
     plt.show()
 
 
