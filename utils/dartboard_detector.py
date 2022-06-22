@@ -23,7 +23,9 @@ class Detector:
         self.perspective_mat_b = None
         self.perspective_mat = None
 
-    def correct_image(self, img, frame_number, debug=False):
+    def correct_image(self, img: np.ndarry, frame_number: int, debug: bool = False) -> np.ndarry | None:
+        """All-purpose function to correct the perspective and return the warped image.
+        Automatically updated the perspective matrices as and when they become invalid"""
         recalculate = False
         # Check the frame is valid every nth frame
         # if frame_number % self.VERIFICATION_RATE == 0:
@@ -50,6 +52,7 @@ class Detector:
 
     def recalculate_perspective(self, img, debug=False):
         """Used to manually recalculate the perspective matrices"""
+        # Not used
         self._get_perspective_mat_a(img, debug)
         self._get_perspective_mat_b(img, debug)
 

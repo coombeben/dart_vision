@@ -3,13 +3,12 @@ import numpy as np
 import time
 
 import consts
+import utils.dart_detector as dart_detector
 from utils.dartboard_detector import Detector
-from utils.dart_detector import DartDetector
 from utils.frame_grouper import FrameGrouper
 
 detector = Detector()
 grouper = FrameGrouper()
-dart_detector = DartDetector()
 
 frame_number = 0
 next_calculate_frame = 0
@@ -24,15 +23,11 @@ while camera.isOpened():
     ret, frame = camera.read()
     if ret:
         frame_number += 1
-        if frame_number == 521:
-            print(f'Internal Status.\n'
-                  f'Next calculate frame: {next_calculate_frame}\n'
-                  f'next_dart_check_frame: {next_dart_check_frame}\n'
-                  f'Grouper last sig frame: {grouper.last_sig_frame}')
-
         if frame_number >= next_calculate_frame:
             frame_adj, recalculate = detector.correct_image(frame, frame_number)
             if frame_adj is None:
+                # If the last frame was unusable (a person has walked in front of the camera), create a new subtractor
+                # next time the image is usable
                 make_new_subtractor = True
                 next_calculate_frame = frame_number + consts.RETRY_PERSPECTIVE_FRAMES
             else:
