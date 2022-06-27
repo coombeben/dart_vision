@@ -19,6 +19,17 @@ SEMI_BULL = DOUBLE_OUTER * (16 / 170)
 BULL = DOUBLE_OUTER * (6.35 / 170)
 
 
+def _get_largest_contour(conts):
+    largest_contour = []
+    max_area = 0
+    for cont in conts:
+        area = cv.contourArea(cont)
+        if area > max_area:
+            max_area = area
+            largest_contour = cont
+    return largest_contour, max_area
+
+
 def angle_between(a, b=(0, -1)) -> float:
     """Returns clockwise angle from vector b to vector a"""
     if a[0] < 0:
@@ -61,7 +72,7 @@ def find_dart_b(foreground_mask, debug_img=None, debug=False):
     max_cont, cont_area = _get_largest_contour(contours)
 
     intersect_point = None
-    if cont_area > consts.MIN_DART_AREA:
+    if consts.MIN_DART_AREA < cont_area < consts.MAX_DART_AREA:
         if debug:
             gui.showImage(thresh)
             cont_img = debug_img.copy()
@@ -72,7 +83,7 @@ def find_dart_b(foreground_mask, debug_img=None, debug=False):
     return intersect_point
 
 
-def get_points(intersect_point, img=None, debug=False) -> (int, bool):
+def get_points(intersect_point, img=None, debug=False) -> (int, int):
     assert not debug or not (img is None)
     """Given an intersection point, returns the corresponding score and whether it was a double"""
     pt_x, pt_y = intersect_point
@@ -82,27 +93,25 @@ def get_points(intersect_point, img=None, debug=False) -> (int, bool):
     theta = angle_between((pt_x - consts.TRANSFORM_X / 2, pt_y - consts.TRANSFORM_Y / 2))
 
     points = 0
-    double = False
+    multiplier = 1
 
-    if radius < BULL:
-        points = 50
-        double = True
-    elif radius < SEMI_BULL:
+    if radius < SEMI_BULL:
         points = 25
+        if radius < BULL:
+            multiplier = 2
     elif radius < DOUBLE_OUTER:  # If dart landed in board:
         points = score_zones[int(np.floor(((theta + np.pi/20) % (2 * np.pi)) * (10 / np.pi)))]
         if DOUBLE_INNER <= radius < DOUBLE_OUTER:
-            points *= 2
-            double = True
+            multiplier = 2
         elif TREBLE_INNER <= radius < TREBLE_OUTER:
-            points *= 3
+            multiplier = 3
 
     if debug:
         debug_img = img.copy()
         debug_img = cv.circle(debug_img, np.intp(intersect_point), 3, consts.BLUE, 3)
-        gui.showImage(debug_img, f'Points: {points}')
+        gui.showImage(debug_img, f'Points: {points*multiplier}')
 
-    return points, double
+    return points, multiplier
 
 
 def _get_impact_point(cont, img=None, debug=False):
@@ -145,14 +154,3 @@ def _get_impact_point(cont, img=None, debug=False):
         gui.showImage(debug_img)
 
     return intersect_point
-
-
-def _get_largest_contour(conts):
-    largest_contour = []
-    max_area = 0
-    for cont in conts:
-        area = cv.contourArea(cont)
-        if area > max_area:
-            max_area = area
-            largest_contour = cont
-    return largest_contour, max_area

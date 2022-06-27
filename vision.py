@@ -30,7 +30,7 @@ def run_vision(players):
         if ret:
             frame_number += 1
             if frame_number >= next_calculate_frame:
-                frame_adj, recalculate = detector.correct_image(frame, frame_number)
+                frame_adj, _ = detector.correct_image(frame, frame_number)
                 if frame_adj is None:
                     # If the last frame was unusable (a person has walked in front of the camera),
                     # create a new subtractor next time the image is usable
@@ -56,9 +56,9 @@ def run_vision(players):
                             best_mask = grouper.get_best_frame()
                             intersect_point = dart_detector.find_dart_b(best_mask)  # , frame_adj, True)
                             if intersect_point is not None:
-                                points, double = dart_detector.get_points(intersect_point, frame_adj, True)
+                                points, multiplier = dart_detector.get_points(intersect_point, frame_adj, True)
                                 if points > 0:
-                                    game.score_points(points, double)
+                                    game.score_points(points, multiplier)
                                     next_dart_check_frame = frame_number + consts.RETRY_DART_DETECTION_FRAMES
         else:
             break

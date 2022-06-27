@@ -26,11 +26,11 @@ class Game:
     def __str__(self):
         return '\n'.join([f'Player: {player.name}\tTarget: {player.target}' for player in self.players])
 
-    def score_points(self, points: int, double: bool, player_id: int = None):
+    def score_points(self, points: int, multiplier: int, player_id: int = None):
         if player_id is None:
             player_id = self.next_player_id
         target_player = self.players[player_id]
-        target_player.score(points, double)
+        target_player.score(points, multiplier)
         if target_player.darts_remaining == 0:
             if player_id < len(self.players) - 1:
                 self.next_player_id += 1
@@ -55,14 +55,15 @@ class Player:
     def __str__(self):
         return f'Player: {self.name}\tTarget: {self.target}'
 
-    def score(self, pts: int, can_finish: bool):
+    def score(self, score: int, multiplier: int):
+        pts = score * multiplier
         if pts < self.target:
             if self.target - pts == 1:
                 self._bust('Cannot have 1 remaining!')
             else:
                 self._adjust_target(pts)
         elif pts == self.target:
-            if can_finish:
+            if multiplier == 2:
                 self._adjust_target(pts)
             else:
                 self._bust('Need to finish on a double!')

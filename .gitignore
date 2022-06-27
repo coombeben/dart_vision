@@ -1,0 +1,10 @@
+# Default ignored files
+/shelf/
+/workspace.xml
+/.idea
+/.idea/dart_vision.iml
+/.idea/misc.xml
+*.jpg
+*.mov
+*.mp4
+*.pdf
