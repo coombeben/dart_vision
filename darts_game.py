@@ -1,15 +1,3 @@
-def parse_score(score: str) -> (int, bool):
-    if score[0] == 'T':
-        return 3 * int(score[1:]), False
-    elif score[0] == 'D':
-        return 2 * int(score[1:]), True
-    elif score == 'Bull':
-        return 50, True
-    elif score == 'Semibull':
-        return 25, False
-    return int(score), False
-
-
 class Game:
     def __init__(self, players, mode='501'):
         if len(players) == 0:
@@ -19,6 +7,9 @@ class Game:
         self.playing = len(players)
         self.players = []
         self.game_over = False
+
+        self.round = 1
+        self.next_player_id = 0
 
         if mode == '501':
             target = 501
@@ -35,17 +26,24 @@ class Game:
     def __str__(self):
         return '\n'.join([f'Player: {player.name}\tTarget: {player.target}' for player in self.players])
 
-    def play_round(self):
-        for player in self.players:
-            player.darts_remaining = 3
-            while player.darts_remaining > 0:
-                pts = input(f"Enter {player.name}'s score: ")
-                player.score(pts)
-                if player.target == 0:
-                    print(player.name + ' has won!')
-                    self.game_over = True
-                    return
-        print(self)
+    def score_points(self, points: int, double: bool, player_id: int = None):
+        if player_id is None:
+            player_id = self.next_player_id
+        target_player = self.players[player_id]
+        target_player.score(points, double)
+        if target_player.darts_remaining == 0:
+            if player_id < len(self.players) - 1:
+                self.next_player_id += 1
+            else:
+                self.round += 1
+                self.next_player_id = 0
+
+    def force_next_round(self):
+        if not all(player.darts_remaining == 3 for player in self.players):
+            self.round += 1
+            self.next_player_id = 0
+            for player in self.players:
+                player.reset_darts_remaining()
 
 
 class Player:
@@ -55,10 +53,9 @@ class Player:
         self.darts_remaining = 3
 
     def __str__(self):
-        print(f'Player: {self.name}\tTarget: {self.target}')
+        return f'Player: {self.name}\tTarget: {self.target}'
 
-    def score(self, points: str):
-        pts, can_finish = parse_score(points)
+    def score(self, pts: int, can_finish: bool):
         if pts < self.target:
             if self.target - pts == 1:
                 self._bust('Cannot have 1 remaining!')
@@ -72,20 +69,14 @@ class Player:
         else:
             self._bust('Cannot exceed target!')
 
+    def reset_darts_remaining(self):
+        self.darts_remaining = 3
+
     def _adjust_target(self, pts: int):
         self.target -= pts
         self.darts_remaining -= 1
+        print(self)
 
     def _bust(self, reason: str):
         print('Bust: ' + reason)
         self.darts_remaining = 0
-
-
-def main():
-    game = Game(['Alice', 'Bob'])
-    while not game.game_over:
-        game.play_round()
-
-
-if __name__ == '__main__':
-    main()

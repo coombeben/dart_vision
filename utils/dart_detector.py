@@ -27,29 +27,29 @@ def angle_between(a, b=(0, -1)) -> float:
         return np.arccos((np.dot(a, b)) / (cv.norm(a)*cv.norm(b)))
 
 
-def find_dart(img_a, img_b, debug=False):
-    a_grey = cv.cvtColor(img_a, cv.COLOR_BGR2GRAY)
-    b_grey = cv.cvtColor(img_b, cv.COLOR_BGR2GRAY)
-
-    diff = get_ssim(a_grey, b_grey)
-    diff = (diff * 255).astype('uint8')
-
-    _, thresh = cv.threshold(diff, 150, 255, cv.THRESH_BINARY_INV)  # | cv.THRESH_OTSU
-    contours, _ = cv.findContours(thresh, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
-    max_cont, cont_area = self._get_largest_contour(contours)
-
-    intersect_point = None
-    if cont_area > consts.MIN_DART_AREA:
-        if debug:
-            gui.showImage(diff)
-            debug_img = img_a.copy()
-            debug_img = cv.drawContours(debug_img, [max_cont], 0, consts.GREEN, 3)
-            debug_img = cv.putText(debug_img, f'{cont_area}', (0, 1080), cv.FONT_HERSHEY_PLAIN,
-                                   3, (255, 255, 255), 3)
-            gui.showImage(debug_img)
-
-        intersect_point = self._get_impact_point(max_cont, img_a, debug=debug)
-    return intersect_point
+# def find_dart(img_a, img_b, debug=False):
+#     a_grey = cv.cvtColor(img_a, cv.COLOR_BGR2GRAY)
+#     b_grey = cv.cvtColor(img_b, cv.COLOR_BGR2GRAY)
+#
+#     diff = get_ssim(a_grey, b_grey)
+#     diff = (diff * 255).astype('uint8')
+#
+#     _, thresh = cv.threshold(diff, 150, 255, cv.THRESH_BINARY_INV)  # | cv.THRESH_OTSU
+#     contours, _ = cv.findContours(thresh, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
+#     max_cont, cont_area = _get_largest_contour(contours)
+#
+#     intersect_point = None
+#     if cont_area > consts.MIN_DART_AREA:
+#         if debug:
+#             gui.showImage(diff)
+#             debug_img = img_a.copy()
+#             debug_img = cv.drawContours(debug_img, [max_cont], 0, consts.GREEN, 3)
+#             debug_img = cv.putText(debug_img, f'{cont_area}', (0, 1080), cv.FONT_HERSHEY_PLAIN,
+#                                    3, (255, 255, 255), 3)
+#             gui.showImage(debug_img)
+#
+#         intersect_point = _get_impact_point(max_cont, img_a, debug=debug)
+#     return intersect_point
 
 
 def find_dart_b(foreground_mask, debug_img=None, debug=False):
@@ -58,7 +58,7 @@ def find_dart_b(foreground_mask, debug_img=None, debug=False):
     thresh = cv.morphologyEx(thresh, cv.MORPH_CLOSE, kernel)
 
     contours, _ = cv.findContours(thresh, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
-    max_cont, cont_area = self._get_largest_contour(contours)
+    max_cont, cont_area = _get_largest_contour(contours)
 
     intersect_point = None
     if cont_area > consts.MIN_DART_AREA:
