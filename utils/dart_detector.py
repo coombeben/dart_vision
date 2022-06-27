@@ -30,37 +30,12 @@ def _get_largest_contour(conts):
     return largest_contour, max_area
 
 
-def angle_between(a, b=(0, -1)) -> float:
+def angle_between(a: (float, float), b=(0, -1)) -> float:
     """Returns clockwise angle from vector b to vector a"""
     if a[0] < 0:
         return 2 * np.pi - np.arccos((np.dot(a, b)) / (cv.norm(a) * cv.norm(b)))
     else:
         return np.arccos((np.dot(a, b)) / (cv.norm(a)*cv.norm(b)))
-
-
-# def find_dart(img_a, img_b, debug=False):
-#     a_grey = cv.cvtColor(img_a, cv.COLOR_BGR2GRAY)
-#     b_grey = cv.cvtColor(img_b, cv.COLOR_BGR2GRAY)
-#
-#     diff = get_ssim(a_grey, b_grey)
-#     diff = (diff * 255).astype('uint8')
-#
-#     _, thresh = cv.threshold(diff, 150, 255, cv.THRESH_BINARY_INV)  # | cv.THRESH_OTSU
-#     contours, _ = cv.findContours(thresh, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
-#     max_cont, cont_area = _get_largest_contour(contours)
-#
-#     intersect_point = None
-#     if cont_area > consts.MIN_DART_AREA:
-#         if debug:
-#             gui.showImage(diff)
-#             debug_img = img_a.copy()
-#             debug_img = cv.drawContours(debug_img, [max_cont], 0, consts.GREEN, 3)
-#             debug_img = cv.putText(debug_img, f'{cont_area}', (0, 1080), cv.FONT_HERSHEY_PLAIN,
-#                                    3, (255, 255, 255), 3)
-#             gui.showImage(debug_img)
-#
-#         intersect_point = _get_impact_point(max_cont, img_a, debug=debug)
-#     return intersect_point
 
 
 def find_dart_b(foreground_mask, debug_img=None, debug=False):
@@ -83,7 +58,7 @@ def find_dart_b(foreground_mask, debug_img=None, debug=False):
     return intersect_point
 
 
-def get_points(intersect_point, img=None, debug=False) -> (int, int):
+def get_points(intersect_point, img=None, debug: bool = False) -> (int, int):
     assert not debug or not (img is None)
     """Given an intersection point, returns the corresponding score and whether it was a double"""
     pt_x, pt_y = intersect_point

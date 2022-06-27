@@ -4,12 +4,6 @@ from threading import Thread, Event
 from queue import Queue
 
 
-def do_sleep():
-    for i in range(60):
-        sleep(1)
-    return
-
-
 @get('/button')
 def fn():
     return """
