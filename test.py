@@ -21,7 +21,6 @@ def run_vision(players):
 
     back_sub = cv.createBackgroundSubtractorMOG2(history=100)
     make_new_subtractor = False
-    scores_this_round = []
 
     camera = cv.VideoCapture("IMG_E1024.mov")
     start_time = time.time()
@@ -33,8 +32,8 @@ def run_vision(players):
             if frame_number >= next_calculate_frame:
                 frame_adj, recalculate = detector.correct_image(frame, frame_number)
                 if frame_adj is None:
-                    # If the last frame was unusable (a person has walked in front of the camera), create a new subtractor
-                    # next time the image is usable
+                    # If the last frame was unusable (a person has walked in front of the camera),
+                    # create a new subtractor next time the image is usable
                     make_new_subtractor = True
                     next_calculate_frame = frame_number + consts.RETRY_PERSPECTIVE_FRAMES
                 else:
