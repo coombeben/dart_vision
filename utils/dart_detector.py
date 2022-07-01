@@ -4,11 +4,14 @@ import numpy as np
 import consts
 import utils.gui as gui
 
-KERNEL_WIDTH = 21
-KERNEL_THICKNESS = 3
-KERNEL_ROT = 45
-kernel = np.zeros((KERNEL_WIDTH, KERNEL_WIDTH), np.uint8)
-kernel = cv.line(kernel, (0, 0), (KERNEL_WIDTH, KERNEL_WIDTH), 1, KERNEL_THICKNESS)
+# Kernel used for morphology on dart threshold image.
+# Set KERNEL_ROT to approx match the angle that the perspective-warped darts appear in the debug images
+# KERNEL_WIDTH = 21
+# KERNEL_THICKNESS = 3
+# KERNEL_ROT = 45
+# kernel = np.zeros((KERNEL_WIDTH, KERNEL_WIDTH), np.uint8)
+# kernel = cv.line(kernel, (0, 0), (KERNEL_WIDTH, KERNEL_WIDTH), 1, KERNEL_THICKNESS)
+kernel = cv.getStructuringElement(cv.MORPH_RECT, (5, 21))
 
 # Parameters used to define acceptable bounds for the radius.
 DOUBLE_OUTER = consts.TRANSFORM_X / 2 - consts.PAD_SCOREZONE
@@ -19,7 +22,7 @@ SEMI_BULL = DOUBLE_OUTER * (16 / 170)
 BULL = DOUBLE_OUTER * (6.35 / 170)
 
 
-def _get_largest_contour(conts):
+def get_largest_contour(conts):
     largest_contour = []
     max_area = 0
     for cont in conts:
@@ -38,13 +41,13 @@ def angle_between(a: (float, float), b=(0, -1)) -> float:
         return np.arccos((np.dot(a, b)) / (cv.norm(a)*cv.norm(b)))
 
 
-def find_dart_b(foreground_mask, debug_img=None, debug=False):
+def find_dart(foreground_mask, debug_img=None, debug=False):
     foreground_mask = cv.GaussianBlur(foreground_mask, (9, 9), cv.BORDER_DEFAULT)
     _, thresh = cv.threshold(foreground_mask, 128, 255, cv.THRESH_BINARY)
     thresh = cv.morphologyEx(thresh, cv.MORPH_CLOSE, kernel)
 
     contours, _ = cv.findContours(thresh, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
-    max_cont, cont_area = _get_largest_contour(contours)
+    max_cont, cont_area = get_largest_contour(contours)
 
     intersect_point = None
     if consts.MIN_DART_AREA < cont_area < consts.MAX_DART_AREA:
@@ -107,7 +110,7 @@ def _get_impact_point(cont, img=None, debug=False):
 
         # Check that the gradients are somewhat tangential
         relative_angle = np.arccos(np.dot(line[0:2], box_line[0:2]) / (np.linalg.norm(line[0:2]) * np.linalg.norm(box_line[0:2])))
-        if (np.pi / 4 <= relative_angle <= 3 * np.pi / 4) or (5 * np.pi / 4 <= relative_angle <= 7 * np.pi / 4):
+        if np.pi / 4 <= (relative_angle % np.pi) <= 3 * np.pi / 4:  # or (5 * np.pi / 4 <= relative_angle <= 7 * np.pi / 4):
             a = np.array([[line[0], -box_line[0]], [line[1], -box_line[1]]], np.float32)
             b = np.array([box_line[2] - line[2], box_line[3] - line[3]], np.float32)
             r = np.linalg.solve(a, b)
@@ -118,6 +121,7 @@ def _get_impact_point(cont, img=None, debug=False):
 
     max_dist = 0
     intersect_point = None
+    # Select the intersect-point furthest from the center of mass.
     for ip in possible_intersect_points:
         if np.linalg.norm(ip - center_of_mass) > max_dist:
             intersect_point = ip

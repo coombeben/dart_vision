@@ -3,7 +3,7 @@ import numpy as np
 
 import consts
 import utils.gui as gui
-import utils.vision as vision
+from utils.dart_detector import get_largest_contour
 
 
 class Detector:
@@ -17,6 +17,7 @@ class Detector:
 
         self.PAD_A = 5  # How many pixels can the tags move before we recalibrate
         self.RECALIBRATE_THRESH = 5  # How many frames the tags need to be obscured before we recalibrate
+        self.RECALIBRATE_INTERVAL = 2  # How many frames before we check that the perspective matrices are still valid?
 
         self.aruco_obstructed_last = False
         self.warp_mat = None
@@ -28,13 +29,14 @@ class Detector:
         """All-purpose function to correct the perspective and return the warped image.
         Automatically updated the perspective matrices as and when they become invalid"""
         recalculate = False
-        if not self._is_valid_a(img, frame_number):
-            self._get_warp_mat(img, debug)
-            self._get_alignment_mat(img, debug)
-            recalculate = True
-        elif not self._is_valid_b(img):
-            self._get_alignment_mat(img, debug)
-            recalculate = True
+        if frame_number % self.RECALIBRATE_INTERVAL == 0:
+            if not self._is_valid_a(img, frame_number):
+                self._get_warp_mat(img, debug)
+                self._get_alignment_mat(img, debug)
+                recalculate = True
+            elif not self._is_valid_b(img):
+                self._get_alignment_mat(img, debug)
+                recalculate = True
 
         # If either perspective matrix could not be calculated from the scene, return nothing
         if self.warp_mat is None or self.alignment_mat is None:
@@ -129,7 +131,7 @@ class Detector:
             gui.showImage(img_comb_hue)
 
         contours, _ = cv.findContours(img_comb_hue, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
-        largest_contour, max_area = vision.get_largest_contour(contours)
+        largest_contour, max_area = get_largest_contour(contours)
 
         e_center, e_size, e_angle = cv.fitEllipse(largest_contour)
         e_eccentricity = np.sqrt(1 - e_size[0] ** 2 / e_size[1] ** 2)

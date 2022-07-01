@@ -1,12 +1,12 @@
 import cv2 as cv
-import numpy as np
-import time
 
 import consts
 import utils.dart_detector as dart_detector
 from utils.dartboard_detector import Detector
 from utils.frame_grouper import FrameGrouper
 from darts_game import Game
+
+ADDRESS = 'tcp://192.186.8.10:8080'
 
 
 def run_vision(players):
@@ -22,8 +22,7 @@ def run_vision(players):
     back_sub = cv.createBackgroundSubtractorMOG2(history=100)
     make_new_subtractor = False
 
-    camera = cv.VideoCapture("IMG_E1024.mov")
-    start_time = time.time()
+    camera = cv.VideoCapture(ADDRESS, cv.CAP_FFMPEG)
 
     while camera.isOpened():
         ret, frame = camera.read()
@@ -40,10 +39,11 @@ def run_vision(players):
                     if make_new_subtractor:
                         # Reset the subtractor if the board becomes obscured (i.e. someone removes their darts)
                         print('Creating new subtractor')
-                        back_sub = cv.createBackgroundSubtractorMOG2(history=100)
+                        # back_sub = cv.createBackgroundSubtractorMOG2(history=100)
+                        back_sub = cv.bgsegm.createBackgroundSubtractorCNT()
                         make_new_subtractor = False
-                        scores_this_round = []
 
+                    # frame_adj_v = cv.cvtColor(frame_adj, cv.COLOR_BGR2HSV)[:, :, 2]
                     # noinspection PyUnboundLocalVariable
                     foreground_mask = back_sub.apply(frame_adj)
 
@@ -54,9 +54,9 @@ def run_vision(players):
                             grouper.append_frame(frame_number, foreground_mask, simm)
                         elif frame_number - 1 == grouper.last_sig_frame:
                             best_mask = grouper.get_best_frame()
-                            intersect_point = dart_detector.find_dart_b(best_mask)  # , frame_adj, True)
+                            intersect_point = dart_detector.find_dart(best_mask, frame_adj, True)
                             if intersect_point is not None:
-                                points, multiplier = dart_detector.get_points(intersect_point, frame_adj, True)
+                                points, multiplier = dart_detector.get_points(intersect_point)  # , frame_adj, True)
                                 if points > 0:
                                     game.score_points(points, multiplier)
                                     next_dart_check_frame = frame_number + consts.RETRY_DART_DETECTION_FRAMES
@@ -64,7 +64,6 @@ def run_vision(players):
             break
 
     camera.release()
-    print(f'Execution time: {round(time.time() - start_time, 2)}')
 
 
 if __name__ == '__main__':

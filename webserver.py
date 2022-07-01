@@ -22,8 +22,6 @@ def do_print():
     player_1 = request.forms.get('player1')
     player_2 = request.forms.get('player2')
     print(f'Player 1: {player_1}\nPlayer 2: {player_2}')
-    do_sleep()
-    # return '<p>Sent</p>'
     return """"""
 
 
