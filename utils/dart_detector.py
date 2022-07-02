@@ -13,6 +13,8 @@ import utils.gui as gui
 # kernel = cv.line(kernel, (0, 0), (KERNEL_WIDTH, KERNEL_WIDTH), 1, KERNEL_THICKNESS)
 kernel = cv.getStructuringElement(cv.MORPH_RECT, (5, 21))
 
+SCORE_ZONES = [20, 1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5]
+
 # Parameters used to define acceptable bounds for the radius.
 DOUBLE_OUTER = consts.TRANSFORM_X / 2 - consts.PAD_SCOREZONE
 DOUBLE_INNER = DOUBLE_OUTER * (159 / 170)
@@ -66,7 +68,6 @@ def get_points(intersect_point, img=None, debug: bool = False) -> (int, int):
     """Given an intersection point, returns the corresponding score and whether it was a double"""
     pt_x, pt_y = intersect_point
 
-    score_zones = [20, 1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5]
     radius = cv.norm((consts.TRANSFORM_X / 2 - pt_x, consts.TRANSFORM_Y / 2 - pt_y))
     theta = angle_between((pt_x - consts.TRANSFORM_X / 2, pt_y - consts.TRANSFORM_Y / 2))
 
@@ -78,7 +79,7 @@ def get_points(intersect_point, img=None, debug: bool = False) -> (int, int):
         if radius < BULL:
             multiplier = 2
     elif radius < DOUBLE_OUTER:  # If dart landed in board:
-        points = score_zones[int(np.floor(((theta + np.pi/20) % (2 * np.pi)) * (10 / np.pi)))]
+        points = SCORE_ZONES[int(np.floor(((theta + np.pi/20) % (2 * np.pi)) * (10 / np.pi)))]
         if DOUBLE_INNER <= radius < DOUBLE_OUTER:
             multiplier = 2
         elif TREBLE_INNER <= radius < TREBLE_OUTER:

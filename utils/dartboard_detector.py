@@ -5,6 +5,8 @@ import consts
 import utils.gui as gui
 from utils.dart_detector import get_largest_contour
 
+TAG_POSITIONS = [2, 3, 0, 1]  # Indicates which corner of the marker to take for the ith marker id
+
 
 class Detector:
     """Dartboard detector class. Used to adjust the perspective of and center the dartboard"""
@@ -94,12 +96,11 @@ class Detector:
             return
 
         source_pts = np.zeros((4, 2), np.float32)
-        tag_position = [2, 3, 0, 1]  # Indicates which corner of the marker to take for the ith marker id
 
         for (marker_corner_arr, marker_id) in zip(corners, ids):
             marker_corners = marker_corner_arr.reshape((4, 2)).astype('float32')
 
-            source_pts[marker_id] = marker_corners[tag_position[marker_id]]
+            source_pts[marker_id] = marker_corners[TAG_POSITIONS[marker_id]]
 
         # Pad the corners slightly so that we can still search for the aruco tags in later frames
         dest_pts = np.array([[self.PAD_A, self.PAD_A],

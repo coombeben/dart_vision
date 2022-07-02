@@ -6,10 +6,12 @@ from utils.dartboard_detector import Detector
 from utils.frame_grouper import FrameGrouper
 from darts_game import Game
 
-ADDRESS = 'tcp://192.186.8.10:8080'
+ADDRESS = 'tcp://192.168.8.10:8080'
+game = None
 
 
 def run_vision(players):
+    global game
     game = Game(players)
 
     detector = Detector()
@@ -29,7 +31,7 @@ def run_vision(players):
         if ret:
             frame_number += 1
             if frame_number >= next_calculate_frame:
-                frame_adj, _ = detector.correct_image(frame, frame_number)
+                frame_adj, _ = detector.correct_image(frame, frame_number, debug=True)
                 if frame_adj is None:
                     # If the last frame was unusable (a person has walked in front of the camera),
                     # create a new subtractor next time the image is usable
