@@ -45,6 +45,21 @@ class Game:
             for player in self.players:
                 player.reset_darts_remaining()
 
+    def get_json(self) -> dict:
+        return {
+            'mode': self.mode,
+            'round': self.round,
+            'players': [
+                {
+                    'name': p.name,
+                    'target': p.target,
+                    'darts_remaining': p.darts_remaining
+                }
+                for p in self.players
+            ],
+            'next_player': self.next_player_id,
+        }
+
 
 class Player:
     def __init__(self, name: str, target: int):

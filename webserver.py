@@ -14,7 +14,7 @@ app = Flask(__name__)
 @app.route('/api/game-status')
 def game_status():
     if game is not None:
-        return str(game)
+        return game.get_json()
     return ''
 
 
@@ -39,16 +39,4 @@ def game_manager():
 
 @app.route('/darts')
 def main_page():
-    return """
-<form action="/post" method="post">
-  <label for="player1">Player 1:</label>
-  <input type="text" id="player1" name="player1"><br><br>
-  <label for="player2">Player 2:</label>
-  <input type="text" id="player2" name="player2"><br><br>
-  <label for="player3">Player 3:</label>
-  <input type="text" id="player3" name="player3"><br><br>
-  <label for="player4">Player 4:</label>
-  <input type="text" id="player4" name="player4"><br><br>
-  <input type="submit" value="Start game">
-</form> 
-"""
+    return ''
